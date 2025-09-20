@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-4" style="max-width:700px;">
+  <h4>Delete Account</h4>
+  <div class="alert alert-warning">
+    Are you sure you want to delete "<strong>{{ account.name }}</strong>"?
+  </div>
+  <form method="post">{% csrf_token %}
+    <div class="d-flex gap-2">
+      <button class="btn btn-danger" type="submit">Yes, Delete</button>
+      <a class="btn btn-secondary" href="{% url 'accounts_list' %}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

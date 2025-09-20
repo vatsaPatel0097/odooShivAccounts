@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-4" style="max-width:700px;">
+  <h4>Delete Tax</h4>
+
+  <div class="alert alert-warning">
+    Are you sure you want to <strong>delete</strong> tax "<strong>{{ tax.name }}</strong>"?
+    <br>
+    <small class="text-muted">This action cannot be undone. Consider deactivating instead by editing and unchecking 'Active'.</small>
+  </div>
+
+  <form method="post">{% csrf_token %}
+    <div class="d-flex gap-2">
+      <button class="btn btn-danger" type="submit">Yes, Delete</button>
+      <a class="btn btn-secondary" href="{% url 'taxes_list' %}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

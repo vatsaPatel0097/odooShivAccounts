@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card p-3" style="max-width:680px">
+  <h4>Create Tax</h4>
+  {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+  <form method="post">{% csrf_token %}
+    <div class="mb-2"><label>Name</label><input name="name" class="form-control" required></div>
+    <div class="mb-2">
+      <label>Computation</label>
+      <select name="computation" class="form-control">
+        <option value="percent">Percentage</option>
+        <option value="fixed">Fixed value</option>
+      </select>
+    </div>
+    <div class="mb-2">
+      <label>Apply On</label>
+      <select name="apply_on" class="form-control">
+        <option value="both">Both</option>
+        <option value="sales">Sales</option>
+        <option value="purchase">Purchase</option>
+      </select>
+    </div>
+    <div class="mb-2"><label>Value</label><input name="value" class="form-control" required></div>
+    <button class="btn btn-primary">Create</button>
+    <a class="btn btn-secondary" href="{% url 'taxes_list' %}">Back</a>
+  </form>
+</div>
+{% endblock %}

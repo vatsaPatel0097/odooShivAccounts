@@ -1,46 +1,275 @@
-{% extends 'base.html' %}
+{% comment %} {% extends 'base.html' %} {% endcomment %}
+
 {% block content %}
-<div class="card p-3">
-  <div class="d-flex justify-content-between align-items-center mb-2">
-    <h4>Product Master</h4>
-    <a href="{% url 'products_add' %}" class="btn btn-success">New</a>
+<style>
+  :root{
+    --card:#ffffff;
+    --accent:#ef4444; /* vibrant red button */
+    --muted:#475569; /* slate gray for text */
+    --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+    --table-border: #eee;
+  }
+  *{box-sizing:border-box}
+  .prod-frame{
+    width:95%;
+    max-width:1180px;
+    background:var(--card);
+    border-radius:18px;
+    padding:24px 28px;
+    box-shadow: var(--soft-shadow);
+    margin: 24px auto;
+  }
+  .topbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:12px;
+    gap:12px;
+  }
+  .left-links, .right-links{
+    display:flex;
+    gap:12px;
+    align-items:center;
+    font-weight:600;
+    color:var(--muted);
+  }
+  h1{font-size:20px;margin:6px 0 0 0;color:var(--accent)}
+  .subtitle{display:block;color:var(--muted);margin-bottom:12px}
+
+  .table-container{
+    overflow-x:auto;
+  }
+  table{
+    width:100%;
+    border-collapse:separate;
+    border-spacing:0 8px;
+  }
+  th, td{
+    text-align:left;
+    padding:12px 12px;
+    border-bottom:1px solid var(--table-border);
+    vertical-align:middle;
+    font-size:14px;
+  }
+  th{
+    font-weight:700;
+    color:#8b93a3;
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:0.6px;
+  }
+  tr.contact-row{
+    border-radius:12px;
+  }
+  tr.contact-row td{
+    background: #fafafa;
+    border: none;
+  }
+  tr.contact-row:hover td{
+    background-color: #fff7f7;
+    cursor:pointer;
+  }
+
+  .avatar-small{
+    width:42px;
+    height:42px;
+    border-radius:8px;
+    background-size:cover;
+    background-position:center;
+    display:inline-block;
+  }
+  .avatar-cell{display:flex;align-items:center;gap:10px}
+
+  .name-cell { font-weight:600; color:#263244 }
+  .muted { color:var(--muted); font-size:13px }
+
+  .actions .btn {
+    display:inline-block;
+    padding:6px 10px;
+    border-radius:8px;
+    font-size:13px;
+    text-decoration:none;
+    margin-left:6px;
+  }
+  .btn-open { border:1px solid #e6e6e6; color:#111; background:#fff; }
+  .btn-edit { border:1px solid #ddd; color:#111; background:#fafafa; }
+  .btn-delete { border:1px solid #f8d7da; color:#b91c1c; background:#fff0f0; }
+
+  /* Pagination */
+  .pagination-controls {
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:10px;
+    margin-top:18px;
+  }
+  .page-btn {
+    background-color: transparent;
+    color: var(--muted);
+    border: 1px solid var(--table-border);
+    padding:8px 12px;
+    border-radius:8px;
+    text-decoration:none;
+  }
+  .page-btn.active {
+    background-color: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  .page-btn.disabled {
+    opacity:0.4; pointer-events:none;
+  }
+
+  @media (max-width:900px){
+    .prod-frame{ padding:16px; }
+    th, td { padding:10px; font-size:13px; }
+  }
+</style>
+
+<div class="prod-frame">
+  <div class="topbar">
+    <div class="left-links">
+      <h1>Product Master</h1>
+    </div>
+    <div class="right-links">
+      <a href="{% url 'products_add' %}" class="page-btn" style="background:var(--accent);color:#fff;border:none">New</a>
+    </div>
   </div>
 
-  <table class="table table-sm table-dark">
-    <thead>
-      <tr>
-        <th style="width:60px">Image</th>
-        <th>Name</th>
-        <th>Type</th>
-        <th>Sales Price</th>
-        <th>Purchase Price</th>
-        <th>HSN</th>
-        <th style="width:90px"></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for p in products %}
-      <tr>
-        <td class="align-middle">
-          {% if p.image %}
-            <img src="{{ p.image.url }}" alt="img" style="height:40px;width:40px;border-radius:6px;">
-          {% else %}
-            <div style="height:40px;width:40px;background:#222;border-radius:6px"></div>
-          {% endif %}
-        </td>
-        <td class="align-middle">{{ p.name }}</td>
-        <td class="align-middle">{{ p.product_type|title }}</td>
-        <td class="align-middle">{{ p.sales_price }}</td>
-        <td class="align-middle">{{ p.purchase_price }}</td>
-        <td class="align-middle">{{ p.hsn|default:"-" }}</td>
-        <td class="align-middle text-end">
-          <a class="btn btn-sm btn-outline-light" href="{% url 'products_detail' p.id %}">Open</a>
-        </td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="7">No products yet.</td></tr>
+  <div class="subtitle">
+    {% if products.paginator.count %}Showing {{ products.paginator.count }} products — Page {{ products.number }} of {{ products.paginator.num_pages }}{% else %}No products found.{% endif %}
+  </div>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Sales Price</th>
+          <th>Purchase Price</th>
+          <th>HSN</th>
+          <th>Sale Tax</th>
+          <th>Purchase Tax</th>
+          <th></th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for product in products %}
+          <tr class="contact-row">
+            <td style="width:68px;">
+              <div class="avatar-cell">
+                {% if product.image %}
+                  {% if product.image.url %}
+                    <div class="avatar-small" style="background-image: url('{{ product.image.url }}')"></div>
+                  {% else %}
+                    <div class="avatar-small" style="background-image: url('https://placehold.co/42x42/efefef/333333?text={{ product.name|slice:':2'|upper|urlencode }}')"></div>
+                  {% endif %}
+                {% else %}
+                  {# fallback placeholder with initials #}
+                  <div class="avatar-small" style="background-image: url('https://placehold.co/42x42/efefef/333333?text={{ product.name|slice:':2'|upper|urlencode }}')"></div>
+                {% endif %}
+              </div>
+            </td>
+
+            <td>
+              <div class="name-cell">{{ product.name|default:"-" }}</div>
+              <div class="muted">SKU: {{ product.sku|default:"-" }}</div>
+            </td>
+
+            <td class="muted">{{ product.product_type|title }}</td>
+
+            <td>
+              {% if product.sales_price is not None %}
+                ₹ {{ product.sales_price }}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+
+            <td>
+              {% if product.purchase_price is not None %}
+                ₹ {{ product.purchase_price }}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+
+            <td class="muted">{{ product.hsn|default:"-" }}</td>
+
+            <td>
+              {% if product.sale_tax %}
+                {{ product.sale_tax.name }}
+                {% if product.sale_tax.value %}
+                  ({{ product.sale_tax.value }}{% if product.sale_tax.computation == 'percent' %}%{% endif %})
+                {% endif %}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+
+            <td>
+              {% if product.purchase_tax %}
+                {{ product.purchase_tax.name }}
+                {% if product.purchase_tax.value %}
+                  ({{ product.purchase_tax.value }}{% if product.purchase_tax.computation == 'percent' %}%{% endif %})
+                {% endif %}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+
+            <td class="actions" style="text-align:right;white-space:nowrap">
+              <a class="btn btn-open" href="{% url 'products_detail' product.id %}">Open</a>
+
+              {% if user and user.role == 'admin' %}
+                <a class="btn btn-edit" href="{% url 'products_edit' product.id %}">Edit</a>
+                <form method="post" action="{% url 'products_delete' product.id %}" style="display:inline;">
+                  {% csrf_token %}
+                  <button class="btn btn-delete" onclick="return confirm('Delete this product?');" type="submit">Delete</button>
+                </form>
+              {% elif request.user.is_authenticated and request.user.is_staff %}
+                <a class="btn btn-edit" href="{% url 'products_edit' product.id %}">Edit</a>
+                <form method="post" action="{% url 'products_delete' product.id %}" style="display:inline;">
+                  {% csrf_token %}
+                  <button class="btn btn-delete" onclick="return confirm('Delete this product?');" type="submit">Delete</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="9" style="padding:18px;text-align:center">No products found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# Server-side pagination controls (keeps your Django paginator functionality) #}
+  {% if products.has_other_pages %}
+    <div class="pagination-controls">
+      {% if products.has_previous %}
+        <a class="page-btn" href="?page={{ products.previous_page_number }}">Prev</a>
+      {% else %}
+        <span class="page-btn disabled">Prev</span>
+      {% endif %}
+
+      {# show page numbers - highlight current #}
+      {% for i in products.paginator.page_range %}
+        {% if i == products.number %}
+          <span class="page-btn active">{{ i }}</span>
+        {% else %}
+          <a class="page-btn" href="?page={{ i }}">{{ i }}</a>
+        {% endif %}
       {% endfor %}
-    </tbody>
-  </table>
+
+      {% if products.has_next %}
+        <a class="page-btn" href="?page={{ products.next_page_number }}">Next</a>
+      {% else %}
+        <span class="page-btn disabled">Next</span>
+      {% endif %}
+    </div>
+  {% endif %}
 </div>
 {% endblock %}
