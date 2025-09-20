@@ -62,4 +62,36 @@ path('vendor_bills/<int:pk>/', views.vendor_bill_detail, name='vendor_bill_detai
 path('reports/partner/<int:partner_id>/', views.partner_ledger, name='partner_ledger'),
 path('reports/profit-loss/', views.profit_and_loss, name='profit_and_loss'),
 path('reports/balance-sheet/', views.balance_sheet, name='balance_sheet'),
+ path('vendor-bills/<int:pk>/pay/', views.vendor_bill_payment, name='vendor_bill_payment'),
+
+ path('sales/orders/', views.sales_order_list, name='sales_order_list'),
+ path('sales/orders/new/', views.sales_order_create, name='sales_order_create'),
+ path('sales/orders/<int:pk>/', views.sales_order_detail, name='sales_order_detail'),
+ path('sales/orders/<int:pk>/add-line/', views.sales_order_add_line, name='sales_order_add_line'),
+ path('sales/orders/<int:pk>/confirm/', views.sales_order_confirm, name='sales_order_confirm'),
+
+
+ path('sales/order/<int:so_pk>/create-invoice/', views.create_invoice_from_so, name='create_invoice_from_so'),
+path('invoices/<int:pk>/confirm/', views.customer_invoice_confirm, name='customer_invoice_confirm'),
+path('invoices/<int:pk>/pay/', views.customer_invoice_receive_payment, name='customer_invoice_receive_payment'),
+# detail/list views not shown here but should exist (customer_invoice_detail)
+path('invoices/', views.customer_invoices_list, name='customer_invoices_list'),
+path('invoices/<int:pk>/', views.customer_invoice_detail, name='customer_invoice_detail'),
+
+ path('portal/invoices/', views.customer_portal_invoices, name='customer_portal_invoices'),
+    path('portal/invoice/<int:pk>/', views.customer_portal_invoice_detail, name='customer_portal_invoice_detail'),
+
+    # Payment
+    # path('portal/invoice/<int:pk>/pay/', views.portal_invoice_pay, name='portal_invoice_pay'),
+    path('portal/payment/callback/<int:payment_id>/', views.portal_payment_callback, name='portal_payment_callback'),
+     path('portal/impersonate/<int:contact_id>/', views.portal_impersonate, name='portal_impersonate'),
+
+      path("portal/login/", views.customer_login, name="customer_login"),
+    path("portal/logout/", views.customer_logout, name="customer_logout"),
+    path("portal/invoices/", views.customer_portal_invoices, name="customer_portal_invoices"),
+    path("portal/invoices/<int:invoice_id>/pay/", views.customer_portal_pay, name="customer_portal_pay"),
+
+path('portal/invoices/<int:invoice_id>/pay/create-order/', views.portal_invoice_pay_create_order, name='portal_invoice_pay_create_order'),
+    path('portal/invoices/<int:invoice_id>/pay/verify/', views.portal_invoice_razorpay_verify, name='portal_invoice_razorpay_verify'),
+    path('razorpay/webhook/', views.razorpay_webhook, name='razorpay_webhook'),  # optional
 ]

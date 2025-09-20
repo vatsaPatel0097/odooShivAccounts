@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-3">
+  <div class="card p-3">
+    <h4>Pay Invoice {{ invoice.number|default:invoice.pk }}</h4>
+    <p><strong>Customer:</strong> {{ contact.name }}</p>
+    <p><strong>Invoice amount:</strong> {{ total_amount|floatformat:2 }}</p>
+    <p><strong>Paid so far:</strong> {{ paid|floatformat:2 }}</p>
+    <p><strong>Amount due:</strong> {{ amount_due|floatformat:2 }}</p>
+
+    <form method="post">{% csrf_token %}
+      <div class="mb-2">
+        <label>Amount to pay</label>
+        <input type="number" name="amount" step="0.01" class="form-control" value="{{ amount_due|floatformat:2 }}" required>
+        <small class="text-muted">You can pay full amount or a partial amount (if allowed).</small>
+      </div>
+
+      <div class="mb-2">
+        <label>Account (where customer will pay to)</label>
+        <select name="account" class="form-control">
+          {% for acc in asset_accounts %}
+            <option value="{{ acc.pk }}">{{ acc.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="mb-2">
+        <label>Method</label>
+        <select name="method" class="form-control">
+          <option value="bank">Bank</option>
+          <option value="cash">Cash</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div class="mb-2">
+        <label>Reference (optional)</label>
+        <input type="text" name="reference" class="form-control" placeholder="Txn ref / payment id">
+      </div>
+
+      <button class="btn btn-success">Pay</button>
+      <a class="btn btn-secondary" href="{% url 'customer_portal_invoices' %}">Cancel</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

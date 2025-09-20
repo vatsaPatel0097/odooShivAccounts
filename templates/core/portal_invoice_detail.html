@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+  <h2>Invoice INV/{{ invoice.pk }}</h2>
+  <p><strong>Customer:</strong> {{ invoice.customer.name }}</p>
+  <p><strong>Issue date:</strong> {{ invoice.invoice_date }} &nbsp; <strong>Due:</strong> {{ invoice.due_date }}</p>
+  <p><strong>Status:</strong> {{ invoice.status }}</p>
+
+  <table class="table">
+    <thead><tr><th>Product</th><th>Qty</th><th>Unit</th><th>Tax%</th><th>Tax amt</th><th>Total</th></tr></thead>
+    <tbody>
+      {% for line in invoice.lines.all %}
+      <tr>
+        <td>{{ line.product.name }}</td>
+        <td>{{ line.qty }}</td>
+        <td style="text-align:right">{{ line.unit_price|floatformat:2 }}</td>
+        <td style="text-align:right">{{ line.tax_percent|floatformat:2 }}</td>
+        <td style="text-align:right">{{ line.tax_amount|floatformat:2 }}</td>
+        <td style="text-align:right">{{ line.line_total|floatformat:2 }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr><th colspan="5">Total</th><th style="text-align:right">{{ invoice.total_amount|floatformat:2 }}</th></tr>
+    </tfoot>
+  </table>
+
+  <p><strong>Amount due:</strong> {{ amount_due|floatformat:2 }}</p>
+
+  {% if amount_due|floatformat:2 != "0.00" %}
+    <a href="{% url 'core:portal_invoice_pay' invoice.pk %}" class="btn btn-primary">Pay Now</a>
+  {% else %}
+    <span class="badge bg-success">Paid</span>
+  {% endif %}
+
+  <a href="{% url 'core:customer_portal_invoices' %}" class="btn btn-secondary">Back</a>
+</div>
+{% endblock %}

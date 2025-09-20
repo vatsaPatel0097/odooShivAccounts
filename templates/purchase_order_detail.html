@@ -1,27 +1,525 @@
-{% extends 'base.html' %}
+{% load static %}
+
 {% block content %}
-<h3>Purchase Order #{{ po.pk }}</h3>
-<p>Vendor: {{ po.vendor }}</p>
-<p>Date: {{ po.po_date }} | State: {{ po.state }}</p>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Purchase Order #{{ po.pk }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --card:#ffffff;
+      --accent:#ef4444;
+      --circle:#f05252;
+      --muted:#475569;
+      --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+      --table-border: #eee;
+      --success:#10b981;
+      --warning:#f59e0b;
+      --info:#3b82f6;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:40px;
+    }
+    .frame{
+      width:95%;
+      max-width:1000px;
+      background:var(--card);
+      border-radius:24px;
+      padding:34px 48px;
+      box-shadow: var(--soft-shadow);
+      position:relative;
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:16px;
+    }
+    .left-links, .right-links{
+      display:flex;
+      gap:18px;
+      align-items:center;
+      font-weight:500;
+      color:var(--muted);
+      letter-spacing:0.2px;
+    }
+    .right-links a{ color: inherit; text-decoration:none; }
+    .action-btn{
+      padding:8px 16px;
+      border-radius:8px;
+      text-decoration:none;
+      font-size:14px;
+      border:none;
+      cursor:pointer;
+      transition:all 0.2s;
+      font-weight:500;
+    }
+    .btn-convert{ background:var(--success); color:white; }
+    .btn-convert:hover{ background:#059669; }
+    .btn-back{ background:var(--muted); color:white; }
+    .btn-back:hover{ background:#374151; }
+    
+    h1{font-size:28px;margin:6px 0 0 0;text-align:center;color:var(--accent)}
+    .subtitle{display:block;text-align:center;color:var(--muted);margin-bottom:26px;font-size:16px;}
+    
+    .po-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:32px;
+      padding-bottom:16px;
+      border-bottom:2px solid var(--table-border);
+    }
+    
+    .po-title{
+      font-size:24px;
+      font-weight:700;
+      color:var(--accent);
+      margin:0;
+    }
+    
+    .po-info{
+      background:#fafafa;
+      border-radius:16px;
+      padding:24px;
+      border:1px solid var(--table-border);
+      margin-bottom:32px;
+    }
+    
+    .info-grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(250px, 1fr));
+      gap:24px;
+    }
+    
+    .info-card{
+      background:white;
+      border-radius:12px;
+      padding:20px;
+      border:1px solid var(--table-border);
+    }
+    
+    .info-label{
+      font-size:12px;
+      font-weight:600;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+      margin-bottom:8px;
+    }
+    
+    .info-value{
+      font-size:18px;
+      font-weight:600;
+      color:#1f2937;
+    }
+    
+    .vendor-card{
+      border-left:4px solid var(--info);
+    }
+    
+    .date-card{
+      border-left:4px solid var(--warning);
+    }
+    
+    .status-card{
+      border-left:4px solid var(--success);
+    }
+    
+    .status-badge{
+      display:inline-flex;
+      align-items:center;
+      padding:6px 12px;
+      border-radius:20px;
+      font-size:12px;
+      font-weight:600;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    
+    .status-draft{
+      background:#fef3c7;
+      color:var(--warning);
+    }
+    
+    .status-confirmed{
+      background:#d1fae5;
+      color:var(--success);
+    }
+    
+    .status-cancelled{
+      background:#fecaca;
+      color:var(--accent);
+    }
+    
+    .lines-section{
+      background:#fafafa;
+      border-radius:16px;
+      padding:24px;
+      border:1px solid var(--table-border);
+      margin-bottom:32px;
+    }
+    
+    .section-header{
+      font-size:18px;
+      font-weight:700;
+      color:var(--accent);
+      margin-bottom:20px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    
+    .lines-table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0 8px;
+      margin-top:16px;
+    }
+    
+    .lines-table thead th{
+      background:white;
+      color:var(--muted);
+      font-weight:600;
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+      padding:16px 20px;
+      text-align:left;
+      border:none;
+      position:sticky;
+      top:0;
+      z-index:10;
+    }
+    
+    .lines-table thead th:first-child{
+      border-radius:12px 0 0 12px;
+    }
+    
+    .lines-table thead th:last-child{
+      border-radius:0 12px 12px 0;
+    }
+    
+    .lines-table tbody tr{
+      background:white;
+      transition:all 0.2s;
+      border-radius:12px;
+    }
+    
+    .lines-table tbody tr:hover{
+      transform:translateY(-2px);
+      box-shadow:var(--soft-shadow);
+    }
+    
+    .lines-table tbody td{
+      padding:20px;
+      border:none;
+      vertical-align:middle;
+    }
+    
+    .lines-table tbody td:first-child{
+      border-radius:12px 0 0 12px;
+      font-weight:600;
+      color:#1f2937;
+    }
+    
+    .lines-table tbody td:last-child{
+      border-radius:0 12px 12px 0;
+      font-weight:700;
+      color:var(--success);
+      text-align:right;
+    }
+    
+    .hsn-code{
+      font-family:monospace;
+      background:#f8fafc;
+      padding:4px 8px;
+      border-radius:6px;
+      font-size:12px;
+      font-weight:600;
+    }
+    
+    .quantity{
+      text-align:center;
+      font-weight:600;
+    }
+    
+    .price{
+      text-align:right;
+      font-weight:500;
+    }
+    
+    .tax-amount{
+      text-align:right;
+      color:var(--warning);
+      font-weight:500;
+    }
+    
+    .line-total{
+      font-size:16px;
+    }
+    
+    .totals-summary{
+      background:white;
+      border-radius:12px;
+      padding:20px;
+      border:1px solid var(--table-border);
+      margin-top:16px;
+    }
+    
+    .totals-grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+      gap:16px;
+    }
+    
+    .total-item{
+      text-align:center;
+      padding:12px;
+      border-radius:8px;
+      background:#f8fafc;
+    }
+    
+    .total-label{
+      font-size:12px;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+      margin-bottom:4px;
+    }
+    
+    .total-amount{
+      font-size:18px;
+      font-weight:700;
+    }
+    
+    .subtotal{ color:var(--info); }
+    .tax-total{ color:var(--warning); }
+    .grand-total{ color:var(--accent); }
+    
+    .empty-state{
+      text-align:center;
+      padding:60px 20px;
+      color:var(--muted);
+    }
+    
+    .empty-icon{
+      font-size:48px;
+      margin-bottom:16px;
+      opacity:0.5;
+    }
+    
+    .actions-section{
+      display:flex;
+      gap:16px;
+      justify-content:center;
+      padding-top:24px;
+      border-top:1px solid var(--table-border);
+    }
+    
+    .btn{
+      padding:12px 24px;
+      border-radius:12px;
+      font-weight:600;
+      font-size:16px;
+      text-decoration:none;
+      border:none;
+      cursor:pointer;
+      transition:all 0.2s;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    
+    .btn-primary{
+      background:var(--success);
+      color:white;
+    }
+    
+    .btn-primary:hover{
+      background:#059669;
+      transform:translateY(-1px);
+      box-shadow:0 4px 12px rgba(16,185,129,0.3);
+    }
+    
+    .btn-secondary{
+      background:var(--muted);
+      color:white;
+    }
+    
+    .btn-secondary:hover{
+      background:#374151;
+      transform:translateY(-1px);
+    }
+    
+    @media (max-width: 768px) {
+      .frame{ padding:20px; }
+      .po-header{ flex-direction:column; gap:16px; align-items:stretch; }
+      .info-grid{ grid-template-columns:1fr; }
+      .totals-grid{ grid-template-columns:repeat(2, 1fr); }
+      .actions-section{ flex-direction:column; }
+      .lines-table{ font-size:14px; }
+      .lines-table tbody td{ padding:12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div class="left-links">
+        <span>Purchase Management</span>
+      </div>
+      <div style="flex:1"></div>
+      <div class="right-links">
+        {% if po.state == 'draft' %}
+          <a href="{% url 'purchase_order_convert_to_bill' po.pk %}" class="action-btn btn-convert">📄 Convert to Bill</a>
+        {% endif %}
+        <a href="{% url 'purchase_orders_list' %}" class="action-btn btn-back">← Back to Orders</a>
+      </div>
+    </div>
 
-<table class="table">
-  <thead><tr><th>Product</th><th>HSN</th><th>Qty</th><th>Price</th><th>Tax</th><th>Total</th></tr></thead>
-  <tbody>
-    {% for L in po.lines.all %}
-    <tr>
-      <td>{{ L.product }}</td>
-      <td>{{ L.hsn }}</td>
-      <td>{{ L.qty }}</td>
-      <td>{{ L.unit_price }}</td>
-      <td>{{ L.tax_amount }}</td>
-      <td>{{ L.line_total }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+    <div class="po-header">
+      <h1 class="po-title">Purchase Order #{{ po.pk|stringformat:"04d" }}</h1>
+    </div>
 
-{% if po.state == 'draft' %}
-  <a class="btn btn-primary" href="{% url 'purchase_order_convert_to_bill' po.pk %}">Convert to Vendor Bill</a>
-{% endif %}
-<a class="btn btn-secondary" href="{% url 'purchase_orders_list' %}">Back</a>
+    <!-- Purchase Order Information -->
+    <div class="po-info">
+      <div class="info-grid">
+        <div class="info-card vendor-card">
+          <div class="info-label">Vendor</div>
+          <div class="info-value">{{ po.vendor }}</div>
+        </div>
+        
+        <div class="info-card date-card">
+          <div class="info-label">PO Date</div>
+          <div class="info-value">{{ po.po_date|date:"M d, Y" }}</div>
+        </div>
+        
+        <div class="info-card status-card">
+          <div class="info-label">Status</div>
+          <div class="info-value">
+            {% if po.state == 'draft' %}
+              <span class="status-badge status-draft">Draft</span>
+            {% elif po.state == 'confirmed' %}
+              <span class="status-badge status-confirmed">Confirmed</span>
+            {% else %}
+              <span class="status-badge status-cancelled">{{ po.state|title }}</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Order Lines -->
+    <div class="lines-section">
+      <div class="section-header">
+        📦 Order Lines
+      </div>
+      
+      {% if po.lines.all %}
+        <table class="lines-table">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>HSN Code</th>
+              <th>Quantity</th>
+              <th>Unit Price</th>
+              <th>Tax Amount</th>
+              <th>Line Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for L in po.lines.all %}
+            <tr>
+              <td>{{ L.product }}</td>
+              <td>
+                {% if L.hsn %}
+                  <span class="hsn-code">{{ L.hsn }}</span>
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td class="quantity">{{ L.qty }}</td>
+              <td class="price">₹{{ L.unit_price|floatformat:2 }}</td>
+              <td class="tax-amount">₹{{ L.tax_amount|floatformat:2 }}</td>
+              <td class="line-total">₹{{ L.line_total|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <!-- Totals Summary -->
+        <div class="totals-summary">
+          <div class="totals-grid">
+            <div class="total-item">
+              <div class="total-label">Subtotal</div>
+              <div class="total-amount subtotal">
+                ₹{% with subtotal=0 %}
+                  {% for L in po.lines.all %}
+                    {% with subtotal=subtotal|add:L.unit_price %}{% endwith %}
+                  {% endfor %}
+                  {{ subtotal|floatformat:2 }}
+                {% endwith %}
+              </div>
+            </div>
+            
+            <div class="total-item">
+              <div class="total-label">Tax Total</div>
+              <div class="total-amount tax-total">
+                ₹{% with tax_total=0 %}
+                  {% for L in po.lines.all %}
+                    {% with tax_total=tax_total|add:L.tax_amount %}{% endwith %}
+                  {% endfor %}
+                  {{ tax_total|floatformat:2 }}
+                {% endwith %}
+              </div>
+            </div>
+            
+            <div class="total-item">
+              <div class="total-label">Grand Total</div>
+              <div class="total-amount grand-total">
+                ₹{% with grand_total=0 %}
+                  {% for L in po.lines.all %}
+                    {% with grand_total=grand_total|add:L.line_total %}{% endwith %}
+                  {% endfor %}
+                  {{ grand_total|floatformat:2 }}
+                {% endwith %}
+              </div>
+            </div>
+          </div>
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <div class="empty-icon">📦</div>
+          <div style="font-size:18px; font-weight:600; margin-bottom:8px;">No Order Lines</div>
+          <div>This purchase order doesn't have any line items yet.</div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Actions -->
+    <div class="actions-section">
+      {% if po.state == 'draft' %}
+        <a href="{% url 'purchase_order_convert_to_bill' po.pk %}" class="btn btn-primary">
+          📄 Convert to Vendor Bill
+        </a>
+      {% endif %}
+      <a href="{% url 'purchase_orders_list' %}" class="btn btn-secondary">
+        ← Back to Purchase Orders
+      </a>
+    </div>
+  </div>
+</body>
+</html>
 {% endblock %}

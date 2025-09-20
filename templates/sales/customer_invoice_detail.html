@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+    <h2>Customer Invoice {{ invoice.number }}</h2>
+    <p>Reference: {{ invoice.reference }}</p>
+    <p>Issue Date: {{ invoice.issue_date }}</p>
+    <p>Due Date: {{ invoice.due_date }}</p>
+    <p>Status: {{ invoice.get_status_display }}</p>
+    
+
+  <h4>Lines</h4>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Product</th>
+        <th>Qty</th>
+        <th>Unit Price</th>
+        <th>Tax %</th>
+        <th>Line Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in invoice.lines.all %}
+      <tr>
+        <td>{{ line.product }}</td>
+        <td>{{ line.qty }}</td>
+        <td>{{ line.unit_price }}</td>
+        <td>{{ line.tax_percent }}</td>
+        <td>{{ line.line_total }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

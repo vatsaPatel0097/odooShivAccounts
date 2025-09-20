@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+  <h3>Create Invoice from SO/{{ so.pk }}</h3>
+  <p>Customer: {{ so.customer }}</p>
+  <p>Lines:</p>
+  <ul>
+    {% for l in so.lines.all %}
+      <li>{{ l.product }} — {{ l.qty }} × {{ l.unit_price }} (tax {{ l.tax_percent }}%)</li>
+    {% endfor %}
+  </ul>
+
+  <form method="post">{% csrf_token %}
+    <button type="submit">Create Invoice from this SO</button>
+    <a href="{% url 'sales_order_detail' so.pk %}">Cancel</a>
+  </form>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+  <h3>Pay Invoice INV/{{ invoice.pk }}</h3>
+  <p><strong>Total:</strong> {{ invoice.total_amount|floatformat:2 }}</p>
+  <p><strong>Amount due:</strong> {{ amount_due|floatformat:2 }}</p>
+
+  <form method="post">{% csrf_token %}
+    <div class="mb-3">
+      <label>Payment Method</label>
+      <select name="method" class="form-control">
+        <option value="bank">Bank Transfer</option>
+        <option value="cash">Cash</option>
+        <option value="cheque">Cheque</option>
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label>Account</label>
+      <select name="account" class="form-control">
+        {% for a in accounts %}
+          <option value="{{ a.pk }}">{{ a.name }} [{{ a.account_type }}]</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label>Note / Reference</label>
+      <input name="note" class="form-control" placeholder="Optional reference"/>
+    </div>
+
+    <button type="submit" class="btn btn-success">Pay {{ amount_due|floatformat:2 }}</button>
+    <a href="{% url 'core:customer_portal_invoice_detail' invoice.pk %}" class="btn btn-secondary">Cancel</a>
+  </form>
+</div>
+{% endblock %}

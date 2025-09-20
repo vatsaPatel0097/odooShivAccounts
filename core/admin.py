@@ -23,3 +23,6 @@ admin.site.register(PurchaseOrderLine)
 admin.site.register(VendorBill)
 admin.site.register(VendorBillLine)
 admin.site.register(Payment)
+admin.site.register(CustomerInvoice)
+admin.site.register(CustomerInvoiceLine)
+    

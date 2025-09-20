@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+  <h2>Customer Invoices</h2>
+
+  {% if invoices %}
+  <table class="table table-bordered table-sm">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Date</th>
+        <th>Customer</th>
+        <th>Reference</th>
+        <th>Status</th>
+        <th>Total</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+      <tr>
+        <td>{{ inv.id }}</td>
+        <td>{{ inv.issue_date }}</td>
+        <td>{{ inv.customer }}</td>
+        <td>{{ inv.reference }}</td>
+        <td>{{ inv.status }}</td>
+        <td>
+          {{ inv.total_amount|default:"—" }}
+        </td>
+        <td>
+          <a href="{% url 'customer_invoice_detail' inv.pk %}">View</a>
+          {% if inv.status != 'confirmed' %}
+            | <a href="{% url 'customer_invoice_confirm' inv.pk %}">Confirm</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="mt-3">
+    {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+    {% endif %}
+    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}">Next</a>
+    {% endif %}
+  </div>
+
+  {% else %}
+    <p>No invoices yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

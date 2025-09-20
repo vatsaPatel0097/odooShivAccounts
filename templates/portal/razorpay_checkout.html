@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+  <div class="card p-4" style="max-width:900px;">
+    <h3>Pay Invoice {{ invoice.number|default:invoice.pk }}</h3>
+    <p>Amount due: <strong>{{ amount_due }}</strong></p>
+    <button id="rzp-pay-btn" class="btn btn-primary">Pay Now</button>
+    <a class="btn btn-secondary" href="{% url 'customer_portal_invoices' %}">Back</a>
+  </div>
+</div>
+
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+  (function(){
+    const order = {{ razor_order|safe }};
+    const key_id = "{{ razor_key_id }}";
+    const invoice_id = "{{ invoice.pk }}";
+    const amount_due = "{{ amount_due }}"; // human readable
+    const amount_paisa = {{ unit_amount }}; // smallest unit
+
+    function openCheckout() {
+      const options = {
+        "key": key_id,
+        "amount": order.amount, // in paise
+        "currency": order.currency,
+        "name": document.title,
+        "description": "Payment for Invoice " + invoice_id,
+        "order_id": order.id,
+        "handler": function (response){
+          // on success, POST response to server to verify and create Payment
+          fetch("{% url 'portal_invoice_razorpay_verify' invoice.pk %}", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": "{{ csrf_token }}",
+            },
+            body: JSON.stringify(response)
+          }).then(r => r.json()).then(data => {
+            if(data.status === "ok"){
+              // redirect to portal invoices or success page
+              window.location = "{% url 'customer_portal_invoices' %}";
+            } else {
+              alert("Payment verification failed. Please contact support.");
+            }
+          }).catch(err=>{
+            console.error(err);
+            alert("Payment processing error. Check console.");
+          });
+        },
+        "modal": {
+          "ondismiss": function(){
+            // optional: user closed the checkout
+          }
+        },
+        "prefill": {
+          // you can prefill name/email if available for better UX
+        },
+        "notes": {
+          "invoice_id": invoice_id
+        }
+      };
+      var rzp = new Razorpay(options);
+      rzp.open();
+    }
+
+    document.getElementById('rzp-pay-btn').addEventListener('click', openCheckout);
+  })();
+</script>
+{% endblock %}

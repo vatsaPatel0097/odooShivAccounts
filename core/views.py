@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect , get_object_or_404
 from django.core.paginator import Paginator
 from .models import *
-from .utils import hash_pw, verify_pw, validate_password_complexity
+from .utils import hash_pw, verify_pw, validate_password_complexity, post_journal_entry
 from django.utils import timezone
 import json
 from pathlib import Path
@@ -19,14 +19,59 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
 import calendar
 from django.db.models import Sum
+from django.views.decorators.http import require_POST
+from django.contrib.admin.views.decorators import staff_member_required
+import razorpay
+import logging 
+from django.views.decorators.csrf import csrf_exempt
+from django.http import HttpResponse , HttpResponseForbidden
 
 DATE_FMT = "%Y-%m-%d"
+
+@staff_member_required
+def portal_impersonate(request, contact_id):
+    """
+    Dev helper: staff-only endpoint to set portal_contact_id in session
+    so you can test the customer portal without a login UI.
+    """
+    from .models import Contact
+    contact = get_object_or_404(Contact, pk=contact_id)
+
+    # set session key used by portal views
+    request.session['portal_contact_id'] = contact.pk
+
+    # optional: save a readable name in session for UI
+    request.session['portal_contact_name'] = contact.name
+
+    # redirect to portal invoice list (adjust URL name/path as you use)
+    return redirect(reverse('customer_portal_invoices'))
 
 def _parse_date(s):
     try:
         return datetime.strptime(s, DATE_FMT).date()
     except Exception:
         return None
+
+def customer_login(request):
+    if request.method == "POST":
+        email = request.POST.get("email")
+        password = request.POST.get("password")
+
+        try:
+            contact = Contact.objects.get(email=email, contact_type__in=["customer", "both"])
+        except Contact.DoesNotExist:
+            messages.error(request, "Invalid login credentials")
+            return redirect("customer_login")
+
+        if contact.check_password(password):
+            request.session["customer_id"] = contact.id
+            messages.success(request, f"Welcome {contact.name}")
+            return redirect("customer_portal_invoices")
+        else:
+            messages.error(request, "Invalid login credentials")
+            return redirect("customer_login")
+
+    return render(request, "portal/login.html")
 
 def profit_and_loss(request):
     # parse optional start/end
@@ -221,6 +266,11 @@ def contacts_add(request):
             state=request.POST.get('state'),
             pincode=request.POST.get('pincode'),
         )
+
+        password_raw = request.POST.get("password")
+        if password_raw:
+            contact.set_password(password_raw)
+        contact.save()
         return redirect('contacts_list')
     return render(request, 'contacts_add.html')
 
@@ -1412,17 +1462,39 @@ def purchase_order_convert_to_bill(request, pk):
     messages.success(request, f"Converted PO {po.pk} → Bill {vb.pk}")
     return redirect(reverse('vendor_bill_detail', args=[vb.pk]))
 
+# def product_info(request, pk):
+#     p = Product.objects.filter(pk=pk).first()
+#     if not p:
+#         return JsonResponse({'error':'Not found'}, status=404)
+#     return JsonResponse({
+#         'id': p.id,
+#         'name': p.name,
+#         'unit_price': float(p.purchase_price or 0),
+#         'tax_percent': float(p.purchase_tax.value if p.purchase_tax else 0),
+#         'hsn': p.hsn or ''
+#     })
+
 def product_info(request, pk):
-    p = Product.objects.filter(pk=pk).first()
-    if not p:
-        return JsonResponse({'error':'Not found'}, status=404)
-    return JsonResponse({
-        'id': p.id,
-        'name': p.name,
-        'unit_price': float(p.purchase_price or 0),
-        'tax_percent': float(p.purchase_tax.value if p.purchase_tax else 0),
-        'hsn': p.hsn or ''
-    })
+    """
+    Return product info for AJAX auto-fill.
+    Used in PO and SO forms.
+    """
+    try:
+        p = Product.objects.get(pk=pk)
+    except Product.DoesNotExist:
+        raise Http404("Product not found")
+
+    data = {
+        "id": p.pk,
+        "name": p.name,
+        # adjust field names according to your Product model
+        "sale_price": float(p.sales_price or 0),     # for Sales Order
+        "sale_tax": float(p.sale_tax.value or 0),  # for Sales Order
+        "purchase_price": float(p.purchase_price or 0),   # for Purchase Order
+        "purchase_tax": float(p.purchase_tax.value or 0), # for Purchase Order
+        "hsn": p.hsn or "",
+    }
+    return JsonResponse(data)
 
 def partner_ledger(request, partner_id):
     from django.contrib.contenttypes.models import ContentType
@@ -1547,3 +1619,977 @@ def balance_sheet(request):
         'net_profit': net_profit,
     }
     return render(request, 'reports/balance_sheet.html', ctx)
+
+
+@transaction.atomic
+def vendor_bill_payment(request, pk):
+    """
+    Render a simple payment form for a VendorBill and post the payment.
+    Uses Payment.post() on POST which creates a JournalEntry.
+    """
+    bill = get_object_or_404(VendorBill, pk=pk)
+
+    # compute outstanding to prefill amount
+    total_bill = Decimal('0.00')
+    for L in bill.lines.all():
+        total_bill += Decimal(L.line_total or 0)
+    paid_already = Decimal('0.00')
+    for p in bill.payments.all():
+        paid_already += Decimal(p.amount or 0)
+    outstanding = total_bill - paid_already
+
+    # candidate payment accounts for dropdown (Cash/Bank)
+    payment_accounts = Account.objects.filter(account_type__in=['asset']).order_by('name')
+    # prefer common names
+    cash_acc = Account.objects.filter(name__iexact='Cash A/c').first()
+    bank_acc = Account.objects.filter(name__iexact='Bank A/c').first()
+
+    if request.method == 'POST':
+        method = request.POST.get('method', 'bank')
+        account_id = request.POST.get('account')
+        amount = request.POST.get('amount')
+        reference = request.POST.get('reference', '').strip()
+        date = request.POST.get('date', None)  # optional: parse if you want
+
+        # basic validation
+        try:
+            amount = Decimal(amount)
+        except Exception:
+            messages.error(request, "Invalid amount")
+            return redirect(reverse('vendor_bill_payment', args=[bill.pk]))
+
+        if amount <= 0:
+            messages.error(request, "Amount must be > 0")
+            return redirect(reverse('vendor_bill_payment', args=[bill.pk]))
+
+        if amount > outstanding:
+            messages.error(request, f"Payment {amount} exceeds outstanding {outstanding}.")
+            return redirect(reverse('vendor_bill_payment', args=[bill.pk]))
+
+        # find account
+        account = None
+        if account_id:
+            try:
+                account = Account.objects.get(pk=int(account_id))
+            except Exception:
+                account = None
+        # fallback: choose bank_acc or cash_acc
+        if account is None:
+            account = bank_acc or cash_acc or payment_accounts.first()
+        if account is None:
+            messages.error(request, "No payment account configured (Cash/Bank).")
+            return redirect(reverse('vendor_bill_payment', args=[bill.pk]))
+
+        # create Payment instance and call post()
+        try:
+            payment = Payment.objects.create(
+                bill=bill,
+                date = date or Payment._meta.get_field('date').get_default(),
+                amount = amount,
+                account = account,
+                method = method,
+                reference = reference,
+                created_by = getattr(request, 'user', None) and getattr(request.user, 'username', None) or 'system'
+            )
+            je = payment.post()  # will create JournalEntry via your model method
+
+            messages.success(request, f"Payment posted (JE #{je.id}) for {bill}.")
+            return redirect('vendor_bill_detail', pk=bill.pk)
+        except Exception as ex:
+            # rollback due to @transaction.atomic
+            messages.error(request, f"Failed to post payment: {ex}")
+            return redirect(reverse('vendor_bill_payment', args=[bill.pk]))
+
+    # GET -> render form
+    context = {
+        'bill': bill,
+        'outstanding': outstanding,
+        'total_bill': total_bill,     # ✅ pass to template
+        'paid_already': paid_already, 
+        'payment_accounts': payment_accounts,
+        'default_account': bank_acc.pk if bank_acc else (cash_acc.pk if cash_acc else (payment_accounts.first().pk if payment_accounts.exists() else None)),
+        'default_method': 'bank' if bank_acc else 'cash',
+    }
+    return render(request, 'payments/payment_form.html', context)
+
+@transaction.atomic
+def customer_invoice_confirm(request, pk):
+    invoice = get_object_or_404(CustomerInvoice, pk=pk)
+
+    # already confirmed?
+    if invoice.status == CustomerInvoice.CONFIRMED:
+        messages.info(request, "Invoice already confirmed.")
+        return redirect('customer_invoice_detail', pk=invoice.pk)
+
+    # compute totals from invoice lines
+    untaxed = Decimal('0.00')
+    tax_total = Decimal('0.00')
+    total = Decimal('0.00')
+    for L in invoice.lines.all():
+        untaxed += (Decimal(L.unit_price or 0) * Decimal(L.qty or 0))
+        tax_total += Decimal(L.tax_amount or 0)
+    total = untaxed + tax_total
+
+    if total == 0:
+        messages.error(request, "Invoice total is zero — cannot confirm.")
+        return redirect('customer_invoice_detail', pk=invoice.pk)
+
+    # find accounts: debtors (asset), sales (income), tax (liability)
+    debtors_acc = Account.objects.filter(account_type__iexact='asset').first()
+    if not debtors_acc:
+        messages.error(request, "No asset (Debtors) account configured.")
+        return redirect('customer_invoice_detail', pk=invoice.pk)
+
+    # Prefer sales income account by exact name, else first income
+    try:
+        sales_acc = Account.objects.get(name__iexact='Sales Income A/c')
+    except Account.DoesNotExist:
+        sales_acc = Account.objects.filter(account_type__iexact='income').first()
+
+    tax_acc = Account.objects.filter(name__icontains='tax').first() or Account.objects.filter(account_type__iexact='liability').first()
+
+    if not sales_acc:
+        messages.error(request, "No sales income account configured.")
+        return redirect('customer_invoice_detail', pk=invoice.pk)
+
+    # Create JournalEntry header
+    je = JournalEntry.objects.create(
+        date = invoice.issue_date or timezone.localdate(),
+        narration = f"Invoice {invoice.number or invoice.pk} for {invoice.customer}"
+    )
+
+    def make_line(account, debit=Decimal('0.00'), credit=Decimal('0.00'), narration=''):
+        debit = Decimal(debit or 0)
+        credit = Decimal(credit or 0)
+        if debit == 0 and credit == 0:
+            return None
+        return JournalLine.objects.create(
+            entry=je,
+            account=account,
+            debit=debit,
+            credit=credit,
+            narration=narration,
+            date=je.date
+        )
+
+    # debit debtors (the customer owes us)
+    make_line(debtors_acc, debit=total, narration=f"Debtor: {invoice.customer}")
+
+    # credit sales for untaxed
+    if untaxed > 0:
+        make_line(sales_acc, credit=untaxed, narration=f"Sales for invoice {invoice.number or invoice.pk}")
+
+    # credit tax account for tax portion
+    if tax_total > 0:
+        if tax_acc:
+            make_line(tax_acc, credit=tax_total, narration=f"Tax for invoice {invoice.number or invoice.pk}")
+        else:
+            # fallback: add tax to sales (not ideal, but ensures JE balances)
+            make_line(sales_acc, credit=tax_total, narration=f"Tax added to sales for invoice {invoice.number or invoice.pk}")
+
+    # link JE to invoice (if field exists)
+    if hasattr(invoice, 'journal_entry'):
+        invoice.journal_entry = je
+
+    invoice.status = CustomerInvoice.CONFIRMED
+    invoice.save(update_fields=['status', 'journal_entry'] if hasattr(invoice, 'journal_entry') else ['status'])
+
+    messages.success(request, f"Invoice {invoice.number or invoice.pk} confirmed and journal entry #{je.id} created.")
+    return redirect('customer_invoice_detail', pk=invoice.pk)
+
+
+@transaction.atomic
+def create_invoice_from_so(request, so_pk):
+    so = get_object_or_404(SalesOrder, pk=so_pk)
+    if request.method == 'POST':
+        # create invoice with issue_date/due_date from SO if available
+        inv = CustomerInvoice.objects.create(
+            customer = so.customer,
+            issue_date = getattr(so, 'so_date', timezone.localdate()),
+            due_date = getattr(so, 'due_date', None),
+            reference = None,  # will be auto-filled in save()
+        )
+        # copy lines (assumes CustomerInvoiceLine model exists)
+        for L in so.lines.all():
+            CustomerInvoiceLine.objects.create(
+                invoice = inv,
+                product = L.product,
+                qty = L.qty,
+                unit_price = L.unit_price,
+                tax_percent = L.tax_percent,
+                # tax_amount / line_total will be computed in line.save() if implemented
+            )
+        messages.success(request, f"Invoice {inv.number or inv.pk} created from SO/{so.pk}")
+        return redirect('customer_invoice_detail', pk=inv.pk)
+    return render(request, 'sales/create_invoice_from_so.html', {'so': so})
+
+
+@transaction.atomic
+def customer_invoice_receive_payment(request, pk):
+    invoice = get_object_or_404(CustomerInvoice, pk=pk)
+
+    # compute outstanding by summing invoice total minus existing payment JEs referencing this invoice (best-effort)
+    total_invoice = Decimal('0.00')
+    for L in invoice.lines.all():
+        total_invoice += Decimal(L.line_total or 0)
+
+    # simple payments SUM from JournalLines where narration references invoice.number (if we created those JEs)
+    paid = Decimal('0.00')
+    # attempt to find payments already posted linking to invoice.journal entries or via narration:
+    if invoice.journal_entry:
+        # sum of payments is not stored; we'll try to inspect JournalLine for other JEs with narration containing 'Payment for Invoice' etc.
+        pass
+
+    outstanding = total_invoice - paid
+
+    if request.method == 'POST':
+        # read form data: amount, account (cash/bank id), method, reference
+        amount_raw = request.POST.get('amount') or '0'
+        account_id = request.POST.get('account')
+        method = request.POST.get('method') or 'bank'
+        reference = (request.POST.get('reference') or '').strip()
+
+        try:
+            amount = Decimal(amount_raw)
+        except Exception:
+            amount = Decimal('0.00')
+
+        if amount <= 0:
+            messages.error(request, "Enter a valid payment amount.")
+            return redirect('customer_invoice_receive_payment', pk=invoice.pk)
+
+        try:
+            account = Account.objects.get(pk=int(account_id))
+        except Exception:
+            messages.error(request, "Select a valid cash/bank account.")
+            return redirect('customer_invoice_receive_payment', pk=invoice.pk)
+
+        if amount > outstanding:
+            messages.error(request, "Payment exceeds outstanding amount (overpayment not allowed here).")
+            return redirect('customer_invoice_receive_payment', pk=invoice.pk)
+
+        # find creditors/debtors account (Debtors)
+        debtors_acc = Account.objects.filter(account_type__iexact='asset').first()
+        if not debtors_acc:
+            messages.error(request, "No Debtors (asset) account configured.")
+            return redirect('customer_invoice_receive_payment', pk=invoice.pk)
+
+        # create journal entry for payment: debit bank/cash (asset), credit debtors (reduces receivable)
+        je = JournalEntry.objects.create(
+            date = timezone.localdate(),
+            narration = f"Payment for Invoice {invoice.number or invoice.pk} ref:{reference}"
+        )
+        # debit bank account (increase asset)
+        JournalLine.objects.create(entry=je, account=account, debit=amount, credit=Decimal('0.00'),
+                                   narration=f"Received via {method} ref:{reference}", date=je.date)
+        # credit debtors (reduce receivable)
+        JournalLine.objects.create(entry=je, account=debtors_acc, debit=Decimal('0.00'), credit=amount,
+                                   narration=f"Payment applied to Invoice {invoice.number or invoice.pk}", date=je.date)
+
+        # Optionally mark invoice as paid if fully paid
+        paid += amount
+        if paid >= total_invoice:
+            invoice.status = CustomerInvoice.CONFIRMED  # already confirmed; you might set a separate PAID flag if you have it
+            # if you have invoice.PAID constant, set invoice.status = invoice.PAID
+            invoice.save(update_fields=['status'])
+        messages.success(request, f"Payment of {amount} recorded (JE #{je.id}).")
+        return redirect('customer_invoice_detail', pk=invoice.pk)
+
+    # GET => render simple payment form
+    cash_bank_accounts = Account.objects.filter(account_type__in=['asset']).order_by('name')
+    ctx = {
+        'invoice': invoice,
+        'outstanding': outstanding,
+        'accounts': cash_bank_accounts,
+    }
+    return render(request, 'invoices/receive_payment.html', ctx)
+
+def sales_order_list(request):
+    orders = SalesOrder.objects.order_by('-date', '-pk')[:200]
+    return render(request, 'sales/order_list.html', {'orders': orders})
+
+def sales_order_create(request):
+    products = Product.objects.order_by('name')
+    contacts = Contact.objects.filter(contact_type__in=['customer','both']).order_by('name')
+
+    if request.method == 'POST':
+        customer_id = request.POST.get('customer')
+        so_date_raw = request.POST.get('so_date') or ''
+        reference = (request.POST.get('reference') or '').strip() or None
+        parsed_date = parse_date_safe(so_date_raw) or timezone.now().date()
+
+        so = SalesOrder.objects.create(
+            customer_id=int(customer_id),
+            date=parsed_date,
+            reference=reference
+        )
+
+        for i in range(1, 6):
+            pid = request.POST.get(f'product_{i}')
+            if not pid: continue
+            try:
+                product_obj = Product.objects.get(pk=int(pid))
+            except Product.DoesNotExist:
+                continue
+            qty = Decimal(request.POST.get(f'qty_{i}') or '0')
+            unit_price = Decimal(request.POST.get(f'unit_price_{i}') or '0')
+            tax_percent = Decimal(request.POST.get(f'tax_percent_{i}') or '0')
+
+            SalesOrderLine.objects.create(
+                order=so,
+                product=product_obj,
+                qty=qty,
+                unit_price=unit_price,
+                tax_percent=tax_percent
+            )
+
+        # so.recompute_totals()
+        messages.success(request, f"Sales Order {so.id} created.")
+        return redirect('sales_order_detail', pk=so.pk)
+
+    ctx = {
+        'products': products,
+        'contacts': contacts,
+        'today': timezone.now().date().isoformat()
+    }
+    return render(request, 'sales/order_create.html', ctx)
+
+
+
+def sales_order_detail(request, pk):
+    so = get_object_or_404(SalesOrder, pk=pk)
+    products = Product.objects.all().order_by('name')[:500]
+
+    # compute totals
+    total_net = Decimal('0.00')
+    total_tax = Decimal('0.00')
+    total = Decimal('0.00')
+    for L in so.lines.all():
+        total_net += Decimal((L.unit_price or 0) * (L.qty or 0))
+        total_tax += Decimal(L.tax_amount or 0)
+        total += Decimal(L.line_total or 0)
+
+    context = {
+        'so': so,
+        'products': products,
+        'total_net': total_net,
+        'total_tax': total_tax,
+        'total': total,
+    }
+    return render(request, 'sales/order_detail.html', context)
+
+
+@require_POST
+def sales_order_add_line(request, pk):
+    so = get_object_or_404(SalesOrder, pk=pk)
+    product_id = request.POST.get('product')
+    qty = request.POST.get('qty') or '1'
+    unit_price = request.POST.get('unit_price') or '0'
+    tax_percent = request.POST.get('tax_percent') or '0'
+
+    try:
+        product = Product.objects.get(pk=int(product_id)) if product_id else None
+    except Exception:
+        product = None
+
+    try:
+        qty = Decimal(qty)
+        unit_price = Decimal(unit_price)
+        tax_percent = Decimal(tax_percent)
+    except Exception:
+        messages.error(request, "Invalid numeric values for line.")
+        return redirect('sales_order_detail', pk=so.pk)
+
+    # create line
+    line = SalesOrderLine.objects.create(
+        order=so,
+        product=product,
+        qty=qty,
+        unit_price=unit_price,
+        tax_percent=tax_percent
+    )
+    messages.success(request, f"Added line (product: {product or '—'}, qty: {qty}).")
+    return redirect('sales_order_detail', pk=so.pk)
+
+
+def sales_order_confirm(request, pk):
+    so = get_object_or_404(SalesOrder, pk=pk)
+    # Basic confirmation: mark confirmed and optionally create an invoice or just set status
+    if so.status == 'confirmed':
+        messages.info(request, "Sales Order already confirmed.")
+        return redirect('sales_order_detail', pk=so.pk)
+
+    # simple validation
+    if not so.lines.exists():
+        messages.error(request, "Cannot confirm an empty Sales Order — add at least one line.")
+        return redirect('sales_order_detail', pk=so.pk)
+
+    so.status = 'confirmed'
+    so.save(update_fields=['status'])
+    messages.success(request, f"Sales Order SO/{so.pk} confirmed.")
+    return redirect('sales_order_detail', pk=so.pk)
+
+def customer_invoices_list(request):
+    invoices = CustomerInvoice.objects.select_related('customer').order_by('-issue_date','-id')
+    paginator = Paginator(invoices, 20)  # 20 per page
+    page = request.GET.get('page')
+    page_obj = paginator.get_page(page)
+
+    return render(request, 'sales/invoice_list.html', {
+        'page_obj': page_obj,
+        'invoices': page_obj.object_list
+    })
+
+def customer_invoice_detail(request, pk):
+    invoice = get_object_or_404(CustomerInvoice, pk=pk)
+    return render(request, 'sales/invoice_detail.html', {'invoice': invoice})
+
+def _get_portal_contact(request):
+    """
+    Return the Contact object representing the logged-in portal user.
+    You said you aren't using Django auth — adapt this function to your auth.
+    For the example, if you store `contact_id` in session:
+    """
+    contact_id = request.session.get('portal_contact_id')
+    if not contact_id:
+        return None
+    try:
+        return Contact.objects.get(pk=int(contact_id))
+    except Contact.DoesNotExist:
+        return None
+
+def customer_portal_invoices(request):
+    # require customer session
+    customer_id = request.session.get("customer_id")
+    if not customer_id:
+        return redirect("customer_login")
+
+    contact = get_object_or_404(Contact, pk=customer_id)
+
+    # Query invoices for this contact
+    qs = CustomerInvoice.objects.filter(customer=contact).order_by('-issue_date', '-id')
+
+    # Build a small list with precomputed paid & amount_due to avoid template DB hits
+    invoice_rows = []
+    for inv in qs:
+        # total invoice amount from lines (best-effort)
+        total_amount = Decimal('0.00')
+        for L in getattr(inv, 'lines').all():
+            # prefer line.line_total if present, else compute
+            try:
+                lt = Decimal(getattr(L, 'line_total', 0) or 0)
+            except Exception:
+                lt = Decimal('0.00')
+            total_amount += lt
+
+        # total paid from Payment objects (if you keep reverse FK 'payments')
+        paid = inv.payments.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        amount_due = total_amount - Decimal(paid)
+
+        invoice_rows.append({
+            'invoice': inv,
+            'total_amount': total_amount,
+            'paid': paid,
+            'amount_due': amount_due,
+        })
+
+    ctx = {
+        'contact': contact,
+        'invoice_rows': invoice_rows,
+    }
+    return render(request, 'portal/invoices.html', ctx)
+
+def customer_logout(request):
+    request.session.pop("customer_id", None)
+    messages.success(request, "Logged out successfully")
+    return redirect("customer_login")
+
+
+def customer_portal_invoice_detail(request, pk):
+    contact = _get_portal_contact(request)
+    if not contact:
+        return HttpResponseForbidden("Please login to the portal to view invoices.")
+
+    invoice = get_object_or_404(CustomerInvoice, pk=pk)
+    # security: only allow owner
+    if invoice.customer_id != contact.id:
+        return HttpResponseForbidden("You can only view your own invoices.")
+
+    # compute amount due: invoice.total - payments
+    paid_sum = invoice.payments.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    amount_due = (invoice.total_amount or Decimal('0.00')) - paid_sum
+
+    return render(request, 'core/portal_invoice_detail.html', {
+        'contact': contact,
+        'invoice': invoice,
+        'amount_due': amount_due,
+    })
+
+
+@transaction.atomic
+def portal_invoice_pay(request, pk):
+    """
+    Create a Payment record and post it (journal entry) when customer clicks Pay.
+    This view supports:
+     - GET: show simple payment form
+     - POST: create Payment, post journal entry and (optionally) redirect to payment gateway
+    """
+    contact = _get_portal_contact(request)
+    if not contact:
+        return HttpResponseForbidden("Please login to the portal to pay invoices.")
+
+    invoice = get_object_or_404(CustomerInvoice, pk=pk)
+    if invoice.customer_id != contact.id:
+        return HttpResponseForbidden("You can only pay your own invoices.")
+
+    # calculate amount due
+    paid_sum = invoice.payments.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    total_amount = invoice.total_amount or Decimal('0.00')
+    amount_due = total_amount - paid_sum
+    if amount_due <= 0:
+        messages.info(request, "Invoice is already fully paid.")
+        return redirect(reverse('core:customer_portal_invoice_detail', args=[invoice.pk]))
+
+    if request.method == 'POST':
+        # user selected payment method & account
+        method = request.POST.get('method', 'bank')  # 'bank' or 'cash' etc
+        account_id = request.POST.get('account')  # choose asset account id (Bank/Cash)
+        note = request.POST.get('note', '').strip()
+
+        # pick account
+        if account_id:
+            try:
+                account = Account.objects.get(pk=int(account_id))
+            except Account.DoesNotExist:
+                account = None
+        else:
+            # fallback: pick first Asset account
+            account = Account.objects.filter(account_type__iexact='asset').first()
+
+        # amount to pay (we'll trust the server-side amount_due)
+        to_pay = amount_due
+
+        # create Payment
+        payment = Payment.objects.create(
+            bill = invoice,         # if Payment.bill is linked to vendor bill, but for customer payments you may have a different link.
+            # If you store customer payments under a different field, adjust.
+            date = timezone.now().date(),
+            amount = to_pay,
+            account = account,
+            method = method,
+            reference = note,
+            created_by = 'portal',
+        )
+
+        # post: create JournalEntry via your existing helper (we used same logic for vendor payments)
+        # For customer receipt, typical posting is:
+        #   Debit: Bank/Cash (asset) = amount_received (increase asset)
+        #   Credit: Debtors (asset) = amount_received (decrease debtor) — but accounting convention: Debtors is asset; clearing a debtor reduces asset (credit)
+        # We'll find Debtors account then build lines.
+        try:
+            debtors_acc = Account.objects.get(name__iexact='Debtors A/c')
+        except Account.DoesNotExist:
+            debtors_acc = Account.objects.filter(account_type__iexact='asset').first()
+
+        lines = [
+            {'account': account, 'debit': Decimal(to_pay), 'credit': Decimal('0.00'),
+             'narration': f'Payment received for Invoice {invoice.pk}', 'partner': contact},
+            {'account': debtors_acc, 'debit': Decimal('0.00'), 'credit': Decimal(to_pay),
+             'narration': f'Reduce debtor for Invoice {invoice.pk}', 'partner': contact},
+        ]
+
+        je = post_journal_entry(date=payment.date, ref=f"Payment/INV/{payment.pk}", narration=f"Portal payment {payment.pk} for INV/{invoice.pk}", lines=lines, source=payment)
+        # link journal entry to payment
+        payment.journal_entry = je
+        payment.save(update_fields=['journal_entry'])
+
+        # associate payment with invoice — adjust model fields depending on your schemas
+        # I assume invoice has payments m2m or reverse fk; we created Payment.bill to invoice earlier,
+        # if different adapt accordingly.
+
+        # After payment, recompute invoice paid status / amount due
+        paid_sum2 = invoice.payments.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        if paid_sum2 >= total_amount:
+            invoice.status = 'paid'  # adapt to your status field values
+            invoice.save(update_fields=['status'])
+
+        # Optionally redirect to payment gateway: here we simulate gateway by redirecting to callback
+        # In real usage, redirect to external provider and handle callbacks.
+        return redirect(reverse('core:portal_payment_callback', args=[payment.pk]))
+
+    # GET: show form with available bank/cash accounts
+    accounts = Account.objects.filter(account_type__iexact='asset').order_by('name')
+    return render(request, 'core/portal_invoice_pay.html', {
+        'contact': contact,
+        'invoice': invoice,
+        'amount_due': amount_due,
+        'accounts': accounts,
+    })
+
+
+@transaction.atomic
+def portal_payment_callback(request, payment_id):
+    """
+    Simulated callback from gateway — in real scenario you'd verify provider signature.
+    Here we simply mark Payment as completed and redirect back to invoice detail.
+    """
+    p = get_object_or_404(Payment, pk=payment_id)
+    # For real gateway: verify request parameters, status, signature, etc.
+
+    # mark payment as processed/confirmed (if you have a status field)
+    # If you want to mark invoice paid, that's already done in portal_invoice_pay
+    messages.success(request, "Payment recorded successfully.")
+    # redirect to invoice detail
+    # if Payment.bill is the invoice:
+    if p.bill:
+        return redirect(reverse('core:customer_portal_invoice_detail', args=[p.bill.pk]))
+    return redirect(reverse('core:customer_portal_invoices'))
+
+def customer_portal_pay(request, invoice_id):
+    # require portal contact in session
+    contact_id = request.session.get('customer_id')
+    if not contact_id:
+        return redirect('customer_login')
+
+    contact = get_object_or_404(Contact, pk=contact_id)
+    invoice = get_object_or_404(CustomerInvoice, pk=invoice_id)
+
+    # Ensure invoice belongs to this contact
+    if invoice.customer_id != contact.pk:
+        return HttpResponseForbidden("You may only pay your own invoices.")
+
+    # compute invoice total (sum of lines) and paid so far
+    total_amount = Decimal('0.00')
+    for L in invoice.lines.all():
+        # prefer a stored line_total, else try qty*unit_price
+        lt = getattr(L, 'line_total', None)
+        if lt is None:
+            try:
+                lt = (Decimal(getattr(L, 'qty', 0) or 0) * Decimal(getattr(L, 'unit_price', 0) or 0))
+            except Exception:
+                lt = Decimal('0.00')
+        total_amount += Decimal(lt or 0)
+
+    paid = invoice.payments.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    amount_due = (total_amount - Decimal(paid)).quantize(Decimal('0.01'))
+
+    if request.method == 'POST':
+        # read posted amount; default to full due
+        amount_raw = request.POST.get('amount') or ''
+        try:
+            amount = Decimal(amount_raw)
+        except Exception:
+            messages.error(request, "Invalid amount.")
+            return redirect('customer_portal_pay', invoice_id=invoice.pk)
+
+        if amount <= 0:
+            messages.error(request, "Amount must be positive.")
+            return redirect('customer_portal_pay', invoice_id=invoice.pk)
+        if amount > amount_due:
+            messages.error(request, "Amount exceeds amount due.")
+            return redirect('customer_portal_pay', invoice_id=invoice.pk)
+
+        # find default asset account (Cash/Bank). Adjust logic to choose the correct account.
+        account = Account.objects.filter(account_type__iexact='asset').first()
+        if not account:
+            messages.error(request, "No asset account configured (Cash/Bank). Contact admin.")
+            return redirect('customer_portal_pay', invoice_id=invoice.pk)
+
+        # Create Payment record. Adjust fields to match your Payment model.
+        pay = Payment.objects.create(
+            # if your Payment uses 'invoice' FK name; if you use 'bill' adapt accordingly
+            invoice=invoice,            # if your Payment model has a different FK name, update
+            date = timezone.now().date(),
+            amount = amount,
+            account = account,
+            method = request.POST.get('method','bank'),
+            reference = request.POST.get('reference',''),
+            created_by = contact.name if getattr(contact,'name',None) else str(contact.pk),
+        )
+
+        # Call .post() to create journal entry and link it — ensure your Payment.post supports invoices.
+        try:
+            je = pay.post()   # If your Payment.post is only for VendorBill, adapt a 'post_customer_payment' variant
+        except Exception as e:
+            # If post() raises, delete payment or keep it for debugging
+            pay.delete()
+            messages.error(request, f"Payment failed: {e}")
+            return redirect('customer_portal_pay', invoice_id=invoice.pk)
+
+        messages.success(request, "Payment recorded. Thank you.")
+        return redirect('customer_portal_invoices')
+
+    # GET -> render the pay form
+    # list of possible accounts (cash/bank) to let user choose; adjust as needed
+    asset_accounts = Account.objects.filter(account_type__iexact='asset').order_by('name')
+
+    ctx = {
+        'contact': contact,
+        'invoice': invoice,
+        'total_amount': total_amount,
+        'paid': paid,
+        'amount_due': amount_due,
+        'asset_accounts': asset_accounts,
+    }
+    return render(request, 'portal/pay.html', ctx)
+
+logger = logging.getLogger(__name__)
+
+client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+
+def compute_invoice_amounts(invoice):
+    """
+    Return (total_amount, paid_amount, amount_due) as Decimal
+    Adjust this function if your invoice model stores totals differently.
+    """
+    # Try to get invoice total from invoice.total or sum lines
+    total = getattr(invoice, "total", None)
+    if total is None:
+        # fallback: sum invoice.lines.line_total if available
+        total = Decimal('0.00')
+        for L in getattr(invoice, "lines", []).all():
+            total += Decimal(getattr(L, "line_total", 0) or 0)
+    else:
+        total = Decimal(total or 0)
+
+    # Sum payments already recorded against this invoice if your model stores them
+    paid = Decimal('0.00')
+    # adapt if invoice has .payments relationship
+    if hasattr(invoice, "payments"):
+        agg = invoice.payments.aggregate(total=Sum('amount'))
+        paid = agg.get('total') or Decimal('0.00')
+    else:
+        # maybe journal entries or payment model: adapt as needed
+        paid = Decimal('0.00')
+
+    amount_due = (total - Decimal(paid)).quantize(Decimal('0.01'))
+    return total, Decimal(paid), amount_due
+
+
+# ---- Create Razorpay order and render checkout page ----
+def portal_invoice_pay_create_order(request, invoice_id):
+    """
+    Show a small page that creates a Razorpay order and launches checkout.
+    Only portal-authenticated customers should be allowed to pay their own invoices.
+    """
+    # Ensure contact/customer logged in via portal session (adapt to your portal login mechanism)
+    contact_id = request.session.get('portal_contact_id') or request.session.get('customer_id')
+    if not contact_id:
+        # redirect to portal login
+        return redirect('customer_portal_login')
+
+    # fetch invoice and ensure ownership
+    invoice = get_object_or_404(CustomerInvoice, pk=invoice_id)  # change model name if needed
+    # Ensure invoice.customer_id matches contact (adapt attribute names)
+    if str(getattr(invoice.customer, "id", None)) != str(contact_id):
+        return HttpResponse(status=403)
+
+    total, paid, amount_due = compute_invoice_amounts(invoice)
+    if amount_due <= 0:
+        return HttpResponse("Invoice already paid", status=400)
+
+    # amount in smallest currency unit (paise if INR)
+    # NOTE: adjust multiplier for your currency
+    currency = "INR"
+    unit_amount = int((amount_due * 100).to_integral_value())
+
+    # Create the Razorpay order
+    razor_order = client.order.create({
+        "amount": unit_amount,
+        "currency": currency,
+        "receipt": f"INV_{invoice.pk}",
+        "notes": {
+            "invoice_id": str(invoice.pk),
+            "portal_contact_id": str(contact_id),
+        }
+    })
+
+    ctx = {
+        "invoice": invoice,
+        "amount_due": str(amount_due),     # decimal to string for JS
+        "unit_amount": unit_amount,
+        "razor_order": razor_order,
+        "razor_key_id": settings.RAZORPAY_KEY_ID,
+        "site_url": settings.SITE_URL.rstrip('/'),
+    }
+    return render(request, "portal/razorpay_checkout.html", ctx)
+
+
+# ---- Client will POST to this after checkout success to verify and create Payment ----
+@csrf_exempt
+def portal_invoice_razorpay_verify(request, invoice_id):
+    """
+    The client posts the razorpay_payment_id, razorpay_order_id, razorpay_signature
+    after successful checkout; we verify signature server-side and create Payment.
+    """
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST required")
+
+    try:
+        data = json.loads(request.body.decode())
+    except Exception:
+        return HttpResponseBadRequest("Invalid JSON")
+
+    payment_id = data.get("razorpay_payment_id")
+    order_id = data.get("razorpay_order_id")
+    signature = data.get("razorpay_signature")
+
+    if not payment_id or not order_id or not signature:
+        return HttpResponseBadRequest("Missing parameters")
+
+    # Verify signature
+    try:
+        client.utility.verify_payment_signature({
+            "razorpay_order_id": order_id,
+            "razorpay_payment_id": payment_id,
+            "razorpay_signature": signature,
+        })
+    except razorpay.errors.SignatureVerificationError as e:
+        logger.exception("Razorpay signature verification failed")
+        return HttpResponse(status=400)
+
+    # fetch payment details from razorpay API (optional, useful to get amount actually paid)
+    try:
+        payment_obj = client.payment.fetch(payment_id)
+    except Exception:
+        payment_obj = None
+
+    invoice = get_object_or_404(CustomerInvoice, pk=invoice_id)
+
+    # Check idempotency: do not create duplicate local Payment for same gateway payment id
+    from core.models import Payment as LocalPayment, Account  # adapt import path if different
+    existing = LocalPayment.objects.filter(reference=payment_id).first()
+    if existing:
+        # already processed
+        return JsonResponse({"status": "ok", "detail": "already recorded"})
+
+    # Determine amount paid (use payment_obj if available)
+    if payment_obj and payment_obj.get("amount"):
+        paid_amt = Decimal(payment_obj["amount"]) / Decimal(100)
+    else:
+        # fallback: use amount_due at moment
+        _, _, amount_due = compute_invoice_amounts(invoice)
+        paid_amt = amount_due
+
+    # choose account where to deposit (Bank/Cash asset)
+    # adapt selection as needed (here choose first asset account)
+    account = Account.objects.filter(account_type__iexact="asset").first()
+
+    # create local Payment record (adapt field names if your Payment model differs)
+    pay = LocalPayment.objects.create(
+        # If your Payment model links to invoice via field 'invoice' -> use invoice=invoice
+        # In your earlier Payment model you used 'bill' field for vendor bills. For invoices you must
+        # have a field such as 'invoice' or generic 'document' - update below accordingly.
+        # I try both patterns to be more robust:
+    )
+
+    # Because Payment model may be for VendorBill (with field 'bill') the code below tries to set
+    # either `invoice` or `bill` or `customer_invoice` depending on what your model defines.
+    PaymentModel = LocalPayment  # alias
+
+    # Build kwargs so we don't crash if model doesn't have that field
+    create_kwargs = {
+        "date": timezone.now().date(),
+        "amount": paid_amt,
+        "account": account,
+        "method": "razorpay",
+        "reference": payment_id,
+        "created_by": f"portal:{request.session.get('portal_contact_id') or request.session.get('customer_id') or 'portal'}",
+    }
+
+    # pick relation field
+    if hasattr(PaymentModel, "_meta"):
+        field_names = {f.name for f in PaymentModel._meta.get_fields()}
+    else:
+        field_names = set()
+
+    if "invoice" in field_names:
+        create_kwargs["invoice"] = invoice
+    elif "customer_invoice" in field_names:
+        create_kwargs["customer_invoice"] = invoice
+    elif "bill" in field_names:
+        # fallback: if Payment model is for bills, we cannot attach invoice - create generic payment.
+        create_kwargs["bill"] = None
+    else:
+        # fallback - if Payment model can't link directly, still create with minimal fields
+        pass
+
+    pay = PaymentModel.objects.create(**create_kwargs)
+
+    # Call your existing .post() so t-accounts get created. If PaymentModel.post exists and is correct it will
+    # create JournalEntry and reduce debtors etc. Wrap in try/except to avoid webhook failing.
+    try:
+        if hasattr(pay, "post"):
+            pay.post()
+    except Exception as e:
+        logger.exception("Error posting payment: %s", e)
+        # still return success to client but log error for debugging
+
+    # Optionally mark invoice paid if fully paid
+    total, paid_total, new_amount_due = compute_invoice_amounts(invoice)
+    if new_amount_due <= 0:
+        invoice.status = "paid"  # adjust status field values as used in your app
+        invoice.save(update_fields=["status"])
+
+    return JsonResponse({"status": "ok", "payment_id": payment_id})
+
+@csrf_exempt
+def razorpay_webhook(request):
+    payload = request.body
+    signature = request.META.get("HTTP_X_RAZORPAY_SIGNATURE")
+    secret = settings.RAZORPAY_WEBHOOK_SECRET
+    if not secret:
+        return HttpResponse(status=400)
+
+    try:
+        client.utility.verify_webhook_signature(payload, signature, secret)
+    except Exception as e:
+        logger.exception("Invalid webhook signature")
+        return HttpResponse(status=400)
+
+    event = json.loads(payload.decode())
+    # Example: event['event'] == 'payment.captured'
+    if event.get("event") == "payment.captured":
+        payment = event["payload"]["payment"]["entity"]
+        payment_id = payment["id"]
+        order_id = payment.get("order_id")
+        amount = Decimal(payment["amount"]) / Decimal(100)
+        notes = payment.get("notes") or {}
+        invoice_id = notes.get("invoice_id") or (order_id and order_id.split("_")[-1])
+
+        # Create local payment same as in verify view, but idempotent
+        from core.models import Payment as LocalPayment, Account
+        if LocalPayment.objects.filter(reference=payment_id).exists():
+            return HttpResponse(status=200)  # already processed
+
+        invoice = None
+        if invoice_id:
+            try:
+                invoice = CustomerInvoice.objects.get(pk=int(invoice_id))
+            except Exception:
+                invoice = None
+
+        account = Account.objects.filter(account_type__iexact="asset").first()
+        create_kwargs = {
+            "date": timezone.now().date(),
+            "amount": amount,
+            "account": account,
+            "method": "razorpay",
+            "reference": payment_id,
+            "created_by": "webhook",
+        }
+        PaymentModel = LocalPayment
+        field_names = {f.name for f in PaymentModel._meta.get_fields()}
+        if invoice and "invoice" in field_names:
+            create_kwargs["invoice"] = invoice
+        elif invoice and "customer_invoice" in field_names:
+            create_kwargs["customer_invoice"] = invoice
+
+        pay = PaymentModel.objects.create(**create_kwargs)
+        try:
+            if hasattr(pay, "post"):
+                pay.post()
+        except Exception:
+            logger.exception("Error posting payment from webhook")
+
+    return HttpResponse(status=200)

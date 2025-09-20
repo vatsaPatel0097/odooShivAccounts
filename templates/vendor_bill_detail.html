@@ -16,5 +16,7 @@
     <button class="btn btn-danger">Confirm & Post Journal</button>
     <a class="btn btn-secondary" href="{% url 'vendor_bills_list' %}">Cancel</a>
   </form>
+  <a href="{% url 'vendor_bill_payment' bill.pk %}" class="btn btn-primary">Pay</a>
+
   
 {% endblock %}

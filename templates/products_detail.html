@@ -1,46 +1,365 @@
-{% extends 'base.html' %}
-{% block content %}
-<div class="card p-3" style="max-width:800px;">
-  <div class="d-flex justify-content-between">
-    <h4>{{ product.name }}</h4>
-    <div>
-      {% if user.role == 'admin' %}
-        <a href="{% url 'products_edit' product.id %}" class="btn btn-sm btn-primary">Edit</a>
-        <a href="{% url 'products_delete' product.id %}" class="btn btn-sm btn-danger">Delete</a>
-      {% endif %}
-      <a href="{% url 'products_list' %}" class="btn btn-sm btn-secondary">Back</a>
-    </div>
-  </div>
+{% load static %}
 
-  <div class="d-flex gap-3 mt-3">
-    {% comment %} <div>
-      {% if product.image %}
-        <img src="{{ product.image.url }}" alt="img" style="height:140px;width:140px;border-radius:8px;">
-      {% endif %}
-    </div> {% endcomment %}
-    <div class="d-flex gap-3 mt-3">
-      <div>
-        {% if product.image %}
-          <img src="{{ product.image.url }}" alt="img" style="height:140px;width:140px;border-radius:8px;">
-        {% endif %}
+{% block content %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Product Details - {{ product.name }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --card:#ffffff;
+      --accent:#ef4444;
+      --circle:#f05252;
+      --muted:#475569;
+      --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+      --table-border: #eee;
+      --success:#10b981;
+      --warning:#f59e0b;
+      --info:#3b82f6;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:40px;
+    }
+    .frame{
+      width:95%;
+      max-width:900px;
+      background:var(--card);
+      border-radius:24px;
+      padding:34px 48px;
+      box-shadow: var(--soft-shadow);
+      position:relative;
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:16px;
+    }
+    .left-links, .right-links{
+      display:flex;
+      gap:18px;
+      align-items:center;
+      font-weight:500;
+      color:var(--muted);
+      letter-spacing:0.2px;
+    }
+    .right-links a{ color: inherit; text-decoration:none; }
+    .action-btn{
+      padding:8px 16px;
+      border-radius:8px;
+      text-decoration:none;
+      font-size:14px;
+      border:none;
+      cursor:pointer;
+      transition:all 0.2s;
+      font-weight:500;
+    }
+    .btn-edit{ background:var(--info); color:white; }
+    .btn-edit:hover{ background:#2563eb; }
+    .btn-delete{ background:var(--accent); color:white; }
+    .btn-delete:hover{ background:#dc2626; }
+    .btn-back{ background:var(--muted); color:white; }
+    .btn-back:hover{ background:#374151; }
+    
+    h1{font-size:28px;margin:6px 0 0 0;text-align:center;color:var(--accent)}
+    .subtitle{display:block;text-align:center;color:var(--muted);margin-bottom:26px;font-size:16px;}
+    
+    .product-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:32px;
+      padding-bottom:16px;
+      border-bottom:2px solid var(--table-border);
+    }
+    
+    .product-title{
+      font-size:24px;
+      font-weight:700;
+      color:var(--accent);
+      margin:0;
+    }
+    
+    .product-content{
+      display:grid;
+      grid-template-columns:300px 1fr;
+      gap:40px;
+      margin-bottom:32px;
+    }
+    
+    .product-image-section{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:16px;
+    }
+    
+    .product-image{
+      width:250px;
+      height:250px;
+      border-radius:16px;
+      object-fit:cover;
+      border:3px solid var(--table-border);
+      box-shadow:var(--soft-shadow);
+    }
+    
+    .no-image{
+      width:250px;
+      height:250px;
+      border-radius:16px;
+      background:#f8fafc;
+      border:2px dashed var(--table-border);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--muted);
+      font-size:48px;
+    }
+    
+    .product-details{
+      display:flex;
+      flex-direction:column;
+      gap:24px;
+    }
+    
+    .detail-section{
+      background:#fafafa;
+      border-radius:12px;
+      padding:20px;
+      border:1px solid var(--table-border);
+    }
+    
+    .section-title{
+      font-size:16px;
+      font-weight:700;
+      color:var(--accent);
+      margin-bottom:16px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    
+    .detail-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:16px;
+    }
+    
+    .detail-item{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    
+    .detail-item.full-width{
+      grid-column:1 / -1;
+    }
+    
+    .detail-label{
+      font-size:12px;
+      font-weight:600;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    
+    .detail-value{
+      font-size:16px;
+      font-weight:500;
+      color:#1f2937;
+    }
+    
+    .type-badge{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:6px 12px;
+      border-radius:20px;
+      font-size:14px;
+      font-weight:600;
+    }
+    
+    .type-goods{
+      background:#dbeafe;
+      color:var(--info);
+    }
+    
+    .type-service{
+      background:#d1fae5;
+      color:var(--success);
+    }
+    
+    .price-card{
+      background:white;
+      border-radius:12px;
+      padding:16px;
+      border:2px solid var(--table-border);
+      text-align:center;
+    }
+    
+    .price-card.sales{
+      border-left:4px solid var(--success);
+    }
+    
+    .price-card.purchase{
+      border-left:4px solid var(--warning);
+    }
+    
+    .price-amount{
+      font-size:20px;
+      font-weight:700;
+      margin-bottom:4px;
+    }
+    
+    .price-tax{
+      font-size:12px;
+      color:var(--muted);
+    }
+    
+    .meta-info{
+      background:#f0f9ff;
+      border:1px solid #bae6fd;
+      border-radius:12px;
+      padding:16px;
+    }
+    
+    .meta-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:16px;
+    }
+    
+    @media (max-width: 768px) {
+      .product-content{ grid-template-columns:1fr; gap:24px; }
+      .detail-grid{ grid-template-columns:1fr; }
+      .meta-grid{ grid-template-columns:1fr; }
+      .frame{ padding:20px; }
+      .product-header{ flex-direction:column; gap:16px; align-items:stretch; }
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div class="left-links">
+        <span>Product Management</span>
       </div>
-      <div>
-        <p><strong>Type:</strong> {{ product.product_type|title }}</p>
-        <p><strong>Category:</strong> {{ product.category|default:"-" }}</p>
-        <p><strong>Sales Price:</strong> {{ product.sales_price }} &nbsp; <small>Tax {{ product.sale_tax_percent }}%</small></p>
-        <p><strong>Purchase Price:</strong> {{ product.purchase_price }} &nbsp; <small>Tax {{ product.purchase_tax_percent }}%</small></p>
-        <p><strong>HSN/SAC:</strong> {{ product.hsn|default:"-" }}</p>
-    
-        {% if product.created_by %}
-          <p><strong>Created by:</strong> {{ product.created_by.full_name }}</p>
-        {% else %}
-          <p><strong>Created by:</strong> -</p>
+      <div style="flex:1"></div>
+      <div class="right-links">
+        {% if user.role == 'admin' %}
+          <a href="{% url 'products_edit' product.id %}" class="action-btn btn-edit">✏️ Edit</a>
+          <a href="{% url 'products_delete' product.id %}" class="action-btn btn-delete">🗑️ Delete</a>
         {% endif %}
-    
-        <p><strong>Created at:</strong> {{ product.created_at }}</p>
+        <a href="{% url 'products_list' %}" class="action-btn btn-back">← Back to Products</a>
       </div>
     </div>
-    
+
+    <div class="product-header">
+      <h1 class="product-title">{{ product.name }}</h1>
+    </div>
+
+    <div class="product-content">
+      <!-- Product Image Section -->
+      <div class="product-image-section">
+        {% if product.image %}
+          <img src="{{ product.image.url }}" alt="{{ product.name }}" class="product-image">
+        {% else %}
+          <div class="no-image">
+            📦
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Product Details Section -->
+      <div class="product-details">
+        
+        <!-- Basic Information -->
+        <div class="detail-section">
+          <div class="section-title">
+            📋 Basic Information
+          </div>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <div class="detail-label">Product Type</div>
+              <div class="detail-value">
+                {% if product.product_type == 'goods' %}
+                  <span class="type-badge type-goods">📦 {{ product.product_type|title }}</span>
+                {% else %}
+                  <span class="type-badge type-service">🛠️ {{ product.product_type|title }}</span>
+                {% endif %}
+              </div>
+            </div>
+            
+            <div class="detail-item">
+              <div class="detail-label">Category</div>
+              <div class="detail-value">{{ product.category|default:"—" }}</div>
+            </div>
+            
+            <div class="detail-item full-width">
+              <div class="detail-label">HSN / SAC Code</div>
+              <div class="detail-value">{{ product.hsn|default:"—" }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pricing Information -->
+        <div class="detail-section">
+          <div class="section-title">
+            💰 Pricing Information
+          </div>
+          <div class="detail-grid">
+            <div class="price-card sales">
+              <div class="detail-label">Sales Price</div>
+              <div class="price-amount">₹{{ product.sales_price|floatformat:2|default:"0.00" }}</div>
+              <div class="price-tax">Tax: {{ product.sale_tax_percent|default:"0" }}%</div>
+            </div>
+            
+            <div class="price-card purchase">
+              <div class="detail-label">Purchase Price</div>
+              <div class="price-amount">₹{{ product.purchase_price|floatformat:2|default:"0.00" }}</div>
+              <div class="price-tax">Tax: {{ product.purchase_tax_percent|default:"0" }}%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Meta Information -->
+        <div class="meta-info">
+          <div class="section-title">
+            ℹ️ Meta Information
+          </div>
+          <div class="meta-grid">
+            <div class="detail-item">
+              <div class="detail-label">Created By</div>
+              <div class="detail-value">
+                {% if product.created_by %}
+                  {{ product.created_by.full_name }}
+                {% else %}
+                  System
+                {% endif %}
+              </div>
+            </div>
+            
+            <div class="detail-item">
+              <div class="detail-label">Created At</div>
+              <div class="detail-value">{{ product.created_at|date:"M d, Y H:i" }}</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
   </div>
-</div>
+</body>
+</html>
 {% endblock %}

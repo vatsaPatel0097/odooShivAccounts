@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+  <div class="card p-3" style="max-width:720px;">
+    <h4>Receive Payment for {{ invoice.number }}</h4>
+    <p><strong>Customer:</strong> {{ invoice.customer }}</p>
+    <p><strong>Invoice total:</strong>
+      {% with total=0 %}
+      {% for L in invoice.lines.all %}{% with total=total|add:L.line_total %}{% endwith %}{% endfor %}
+      {{ total }}
+      {% endwith %}
+    </p>
+    <p><strong>Outstanding:</strong> {{ outstanding }}</p>
+
+    <form method="post">{% csrf_token %}
+      <div class="mb-2">
+        <label>Amount</label>
+        <input name="amount" type="number" min="0.01" step="0.01" class="form-control" value="{{ outstanding }}">
+      </div>
+      <div class="mb-2">
+        <label>Account (Bank/Cash)</label>
+        <select name="account" class="form-control">
+          {% for a in accounts %}
+            <option value="{{ a.pk }}">{{ a.name }} ({{ a.account_type }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="mb-2">
+        <label>Method</label>
+        <select name="method" class="form-control">
+          <option value="bank">Bank</option>
+          <option value="cash">Cash</option>
+          <option value="cheque">Cheque</option>
+        </select>
+      </div>
+      <div class="mb-2">
+        <label>Reference (optional)</label>
+        <input name="reference" class="form-control">
+      </div>
+
+      <button class="btn btn-success">Post Payment</button>
+      <a class="btn btn-secondary" href="{% url 'customer_invoice_detail' invoice.pk %}">Cancel</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

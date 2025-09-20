@@ -6,6 +6,8 @@ from decimal import Decimal
 from datetime import date,datetime
 import uuid
 from django.http import JsonResponse
+from django.contrib.auth.hashers import make_password, check_password
+
 
 class User(models.Model):
     ROLE_CHOICES = (('admin','Admin'),('invoicing','Invoicing User'))
@@ -16,20 +18,31 @@ class User(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
 
 class Contact(models.Model):
+    CUSTOMER = 'customer'
+    VENDOR = 'vendor'
+    BOTH = 'both'
     CONTACT_TYPES = [
-        ('customer', 'Customer'),
-        ('vendor', 'Vendor'),
-        ('both', 'Both'),
+        (CUSTOMER, 'Customer'),
+        (VENDOR, 'Vendor'),
+        (BOTH, 'Both'),
     ]
 
-    name = models.CharField(max_length=100)
-    contact_type = models.CharField(max_length=10, choices=CONTACT_TYPES)
-    email = models.EmailField(blank=True, null=True)
+    name = models.CharField(max_length=255)
+    contact_type = models.CharField(max_length=20, choices=CONTACT_TYPES)
+    email = models.EmailField(unique=True,null=True)
     mobile = models.CharField(max_length=20, blank=True, null=True)
-    city = models.CharField(max_length=50, blank=True, null=True)
-    state = models.CharField(max_length=50, blank=True, null=True)
-    pincode = models.CharField(max_length=10, blank=True, null=True)
-    profile_image = models.ImageField(upload_to='contacts/', blank=True, null=True)  # 👈 added field
+    city = models.CharField(max_length=100, blank=True, null=True)
+    state = models.CharField(max_length=100, blank=True, null=True)
+    pincode = models.CharField(max_length=20, blank=True, null=True)
+    profile_image = models.ImageField(upload_to="contacts/", blank=True, null=True)
+
+    password = models.CharField(max_length=128, blank=True, null=True)  # 🔑 add password field
+
+    def set_password(self, raw_password):
+        self.password = make_password(raw_password)
+
+    def check_password(self, raw_password):
+        return check_password(raw_password, self.password)
 
     def __str__(self):
         return self.name
@@ -351,26 +364,25 @@ class Payment(models.Model):
         Post the payment as a JournalEntry:
           Debit: Creditor (liability)  = amount  (reduces creditor)
           Credit: Bank/Cash (asset) = amount  (reduces asset)
-        Also marks bill paid/part-paid.
+
+        Also marks bill paid/part-paid. Saves payment.journal_entry.
         """
         if self.journal_entry:
-            raise ValueError("Payment already posted")
+            raise ValueError("Payment already posted (journal_entry already present).")
 
-        # compute outstanding on bill
+        # compute bill totals and outstanding
         bill = self.bill
-        # total bill amount
         total_bill = Decimal('0.00')
         for L in bill.lines.all():
             total_bill += Decimal(L.line_total or 0)
-        # total payments already done
+
         paid_already = Decimal('0.00')
         for p in bill.payments.exclude(pk=self.pk):
             paid_already += Decimal(p.amount or 0)
 
         outstanding = total_bill - paid_already
         if Decimal(self.amount) > outstanding:
-            # allow overpayment? For now block
-            raise ValueError("Payment exceeds outstanding amount")
+            raise ValueError(f"Payment exceeds outstanding amount ({outstanding}).")
 
         # find creditors account (liability) and the cash/bank account is self.account
         from .models import Account
@@ -378,27 +390,91 @@ class Payment(models.Model):
             creditors_acc = Account.objects.get(name__iexact='Creditors A/c')
         except Account.DoesNotExist:
             creditors_acc = Account.objects.filter(account_type='liability').first()
+            if not creditors_acc:
+                raise ValueError("No creditors (liability) account configured.")
+
+        if not self.account:
+            raise ValueError("Payment must have an account (Cash/Bank) assigned.")
 
         # Build lines: debit creditors (reduce liability), credit bank/cash (reduce asset)
         lines = [
-            {'account': creditors_acc, 'debit': Decimal(self.amount), 'credit': 0, 'narration': f'Payment for Bill/{bill.pk}', 'partner': bill.vendor},
-            {'account': self.account, 'debit': 0, 'credit': Decimal(self.amount), 'narration': f'Paid via {self.method} ref:{self.reference or ""}', 'partner': bill.vendor},
+            {
+                'account': creditors_acc,
+                'debit': Decimal(self.amount),
+                'credit': Decimal('0.00'),
+                'narration': f'Payment for Bill/{bill.pk}',
+                'partner': bill.vendor
+            },
+            {
+                'account': self.account,
+                'debit': Decimal('0.00'),
+                'credit': Decimal(self.amount),
+                'narration': f'Paid via {self.method} ref:{self.reference or ""}',
+                'partner': bill.vendor
+            },
         ]
 
+        # Use your helper to create the JournalEntry (post_journal_entry should return the JE)
         from .utils import post_journal_entry
-        je = post_journal_entry(date=self.date, ref=f"Payment/{self.pk}", narration=f"Payment {self.pk} for Bill/{bill.pk}", lines=lines, source=self)
+
+        je = post_journal_entry(
+            date=self.date,
+            ref=f"Payment/{self.pk}",
+            narration=f"Payment {self.pk} for Bill/{bill.pk}",
+            lines=lines,
+            source=self,  # if your helper supports linking
+        )
+
+        if not je:
+            raise ValueError("post_journal_entry failed to return a JournalEntry.")
+
+        # link JE to payment and save
         self.journal_entry = je
         self.save(update_fields=['journal_entry'])
 
-        # update bill state
+        # update bill paid status/fields
         new_paid = paid_already + Decimal(self.amount)
+
+        # If your VendorBill uses 'status' as field (it does in your posted model), set it:
+        if hasattr(bill, 'status'):
+            # you may want a dedicated 'paid' state; if not, keep 'confirmed'
+            try:
+                # prefer a 'paid' constant if exists, else mark confirmed
+                if hasattr(bill, 'PAID'):
+                    bill.status = bill.PAID
+                else:
+                    bill.status = bill.CONFIRMED
+            except Exception:
+                bill.status = 'confirmed'
+            # optionally store paid amount (if you add such a field)
+        else:
+            # fallback for older code that used 'state'
+            try:
+                bill.state = 'paid'
+            except Exception:
+                # ignore if neither exists
+                pass
+
+        # If you track whether fully paid, update accordingly
         if new_paid >= total_bill:
-            bill.state = bill.CONFIRMED if bill.state != bill.CONFIRMED else bill.state
-            # we may want a separate 'paid' state; update if you added it
-            # If you defined 'paid' state on VendorBill change accordingly:
-            if hasattr(bill, 'PAID'):
-                bill.state = bill.PAID
-        bill.save(update_fields=['state'])
+            # if VendorBill has a 'paid' boolean or similar, set it here; else keep status updated as above
+            if hasattr(bill, 'is_paid'):
+                bill.is_paid = True
+
+        # Save bill (choose fields that exist)
+        save_fields = []
+        if hasattr(bill, 'status'):
+            save_fields.append('status')
+        if hasattr(bill, 'state'):
+            save_fields.append('state')
+        if hasattr(bill, 'is_paid'):
+            save_fields.append('is_paid')
+
+        if save_fields:
+            bill.save(update_fields=save_fields)
+        else:
+            bill.save()
+
         return je
 
 
@@ -539,3 +615,201 @@ class PurchaseOrderLine(models.Model):
         if self.product and not self.hsn:
             self.hsn = getattr(self.product, 'hsn', '') or ''
         super().save(*args, **kwargs)
+
+from decimal import Decimal
+from django.db import models, transaction
+from django.utils import timezone
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
+
+# --- Sales order (optional) ---
+class SalesOrder(models.Model):
+    customer = models.ForeignKey('core.Contact', on_delete=models.PROTECT)
+    date = models.DateField(default=timezone.localdate)
+    reference = models.CharField(max_length=200, blank=True, null=True)
+    status = models.CharField(max_length=20, default='draft')  # draft/confirmed/cancelled
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"SO/{self.pk} - {self.customer}"
+
+
+class SalesOrderLine(models.Model):
+    order = models.ForeignKey(SalesOrder, related_name='lines', on_delete=models.CASCADE)
+    product = models.ForeignKey('core.Product', null=True, blank=True, on_delete=models.PROTECT)
+    qty = models.DecimalField(max_digits=12, decimal_places=2, default=1)
+    unit_price = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    tax_percent = models.DecimalField(max_digits=7, decimal_places=2, default=0)
+    tax_amount = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    line_total = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+
+    def save(self, *args, **kwargs):
+        net = (Decimal(self.unit_price or 0) * Decimal(self.qty or 0))
+        try:
+            tax = (net * (Decimal(self.tax_percent or 0) / Decimal('100.00')))
+        except Exception:
+            tax = Decimal('0.00')
+        self.tax_amount = tax.quantize(Decimal('0.01'))
+        self.line_total = (net + self.tax_amount).quantize(Decimal('0.01'))
+        super().save(*args, **kwargs)
+
+
+# --- Customer Invoice ---
+class CustomerInvoice(models.Model):
+    DRAFT = 'draft'
+    CONFIRMED = 'confirmed'
+    CANCELLED = 'cancelled'
+    STATUS_CHOICES = [
+        (DRAFT, 'Draft'),
+        (CONFIRMED, 'Confirmed'),
+        (CANCELLED, 'Cancelled'),
+    ]
+
+    # human-readable sequential invoice number, auto-generated: e.g. INV/2025/0001
+    number = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    # optional extra reference (free text) — also auto-filled if you want
+    reference = models.CharField(max_length=200, blank=True, null=True)
+
+    customer = models.ForeignKey('core.Contact', on_delete=models.PROTECT)
+    issue_date = models.DateField(default=timezone.localdate)   # invoice issue date
+    due_date = models.DateField(null=True, blank=True)          # optional due date
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=DRAFT)
+
+    # accounting link
+    journal_entry = models.ForeignKey('core.JournalEntry', null=True, blank=True, on_delete=models.SET_NULL)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.CharField(max_length=200, blank=True, null=True)
+
+    class Meta:
+        ordering = ['-issue_date', '-id']
+
+    def __str__(self):
+        return f"INV/{self.pk or 'n'}/{self.issue_date} - {self.customer}"
+
+    @staticmethod
+    def _format_number_for_year(year, seq):
+        """ Return formatted invoice number like INV/2025/0001 """
+        return f"INV/{year}/{int(seq):04d}"
+
+    def _generate_number_and_ref(self):
+        """
+        Generate a new sequential invoice number for the invoice year.
+        This implementation is simple: count invoices for the same year and use next sequence.
+        For high concurrency production you should use a dedicated sequence table or DB sequence.
+        """
+        year = (self.issue_date or timezone.localdate()).year
+        # get last invoice with number for that year
+        last = CustomerInvoice.objects.filter(number__startswith=f"INV/{year}/").order_by('-id').first()
+        if last and last.number:
+            # parse trailing sequence
+            try:
+                seq = int(last.number.split('/')[-1])
+            except Exception:
+                seq = 0
+            seq = seq + 1
+        else:
+            seq = 1
+        return self._format_number_for_year(year, seq)
+
+    def save(self, *args, **kwargs):
+        # On first save (no number yet), generate number and default reference if missing.
+        created = self.pk is None
+        # Ensure we have an issue_date
+        if not self.issue_date:
+            self.issue_date = timezone.localdate()
+
+        # Generate number atomically to reduce but not eliminate race conditions
+        if created and not self.number:
+            # simple locking approach using transaction.atomic: not perfect under heavy concurrency
+            with transaction.atomic():
+                # Re-check after acquiring transaction (in case another process created one)
+                if not self.number:
+                    self.number = self._generate_number_and_ref()
+                    # if reference is empty, default to same as number
+                    if not self.reference:
+                        self.reference = self.number
+
+        # ensure reference exists
+        if not self.reference:
+            self.reference = self.number or ''
+
+        super().save(*args, **kwargs)
+
+class CustomerInvoiceLine(models.Model):
+    invoice = models.ForeignKey(CustomerInvoice, related_name='lines', on_delete=models.CASCADE)
+    product = models.ForeignKey('core.Product', null=True, blank=True, on_delete=models.PROTECT)
+    qty = models.DecimalField(max_digits=12, decimal_places=2, default=1)
+    unit_price = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    tax_percent = models.DecimalField(max_digits=7, decimal_places=2, default=0)
+    tax_amount = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    line_total = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+
+    def save(self, *args, **kwargs):
+        net = (Decimal(self.unit_price or 0) * Decimal(self.qty or 0))
+        try:
+            tax = (net * (Decimal(self.tax_percent or 0) / Decimal('100.00')))
+        except Exception:
+            tax = Decimal('0.00')
+        self.tax_amount = tax.quantize(Decimal('0.01'))
+        self.line_total = (net + self.tax_amount).quantize(Decimal('0.01'))
+        super().save(*args, **kwargs)
+
+class CustomerPayment(models.Model):
+    PAYMENT_METHODS = [('cash','Cash'), ('bank','Bank'), ('cheque','Cheque'), ('other','Other')]
+
+    invoice = models.ForeignKey(CustomerInvoice, related_name='payments', on_delete=models.CASCADE)
+    date = models.DateField(default=timezone.now)
+    amount = models.DecimalField(max_digits=18, decimal_places=2)
+    account = models.ForeignKey('core.Account', on_delete=models.PROTECT)  # Cash/Bank account used
+    method = models.CharField(max_length=32, choices=PAYMENT_METHODS, default='bank')
+    reference = models.CharField(max_length=200, blank=True, null=True)
+    created_by = models.CharField(max_length=200, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    journal_entry = models.ForeignKey('core.JournalEntry', null=True, blank=True, on_delete=models.SET_NULL)
+
+    def __str__(self):
+        return f"CUSTPAY/{self.pk} - {self.amount} for INV/{self.invoice.pk}"
+
+    @transaction.atomic
+    def post(self):
+        if self.journal_entry:
+            raise ValueError("Payment already posted")
+
+        inv = self.invoice
+        # compute outstanding
+        total_inv = sum([Decimal(L.line_total or 0) for L in inv.lines.all()])
+        paid_already = sum([Decimal(p.amount or 0) for p in inv.payments.exclude(pk=self.pk)])
+        outstanding = total_inv - paid_already
+        if Decimal(self.amount) > outstanding:
+            raise ValueError("Payment exceeds outstanding amount")
+
+        from .models import Account
+        try:
+            debtors_acc = Account.objects.get(name__iexact='Debtors A/c')
+        except Account.DoesNotExist:
+            debtors_acc = Account.objects.filter(account_type='asset').first()
+
+        # Build lines: debit bank/cash (asset) , credit debtors (asset reduction)
+        lines = [
+            {'account': self.account, 'debit': Decimal(self.amount), 'credit': Decimal('0.00'),
+             'narration': f'Received for Invoice/{inv.pk}', 'partner': inv.customer},
+            {'account': debtors_acc, 'debit': Decimal('0.00'), 'credit': Decimal(self.amount),
+             'narration': f'Received from {inv.customer} for INV/{inv.pk}', 'partner': inv.customer},
+        ]
+
+        from .utils import post_journal_entry
+        je = post_journal_entry(date=self.date, ref=f"CustPay/{self.pk}", narration=f"Payment {self.pk} for INV/{inv.pk}", lines=lines, source=self)
+        self.journal_entry = je
+        self.save(update_fields=['journal_entry'])
+
+        # no status on invoice? mark paid if fully paid
+        new_paid = paid_already + Decimal(self.amount)
+        if new_paid >= total_inv:
+            inv.status = inv.CONFIRMED if inv.status != inv.CONFIRMED else inv.status
+            if hasattr(inv, 'PAID'):
+                inv.status = inv.PAID
+            inv.save(update_fields=['status'])
+        return je

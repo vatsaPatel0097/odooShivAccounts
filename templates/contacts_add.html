@@ -1,25 +1,417 @@
-{% extends 'base.html' %}
+{% load static %}
+
 {% block content %}
-<div class="card p-4">
-  <h4>New Contact</h4>
-  <form method="post" enctype="multipart/form-data">{% csrf_token %}
-    <div class="mb-2"><label>Name</label><input name="name" class="form-control" required/></div>
-    <div class="mb-2">
-      <label>Type</label>
-      <select name="contact_type" class="form-control">
-        <option value="customer">Customer</option>
-        <option value="vendor">Vendor</option>
-        <option value="both">Both</option>
-      </select>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Add New Contact</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --card:#ffffff;
+      --accent:#ef4444;
+      --circle:#f05252;
+      --muted:#475569;
+      --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+      --table-border: #eee;
+      --success:#10b981;
+      --warning:#f59e0b;
+      --info:#3b82f6;
+      --input-border:#d1d5db;
+      --input-focus:#3b82f6;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:40px;
+    }
+    .frame{
+      width:95%;
+      max-width:800px;
+      background:var(--card);
+      border-radius:24px;
+      padding:34px 48px;
+      box-shadow: var(--soft-shadow);
+      position:relative;
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:16px;
+    }
+    .left-links, .right-links{
+      display:flex;
+      gap:18px;
+      align-items:center;
+      font-weight:500;
+      color:var(--muted);
+      letter-spacing:0.2px;
+    }
+    .right-links a{ color: inherit; text-decoration:none; }
+    .back-btn{
+      background:var(--muted);
+      color:white;
+      padding:8px 16px;
+      border-radius:8px;
+      text-decoration:none;
+      font-size:14px;
+      border:none;
+      cursor:pointer;
+      transition:all 0.2s;
+    }
+    .back-btn:hover{ background:#374151; }
+    h1{font-size:28px;margin:6px 0 0 0;text-align:center;color:var(--accent)}
+    .subtitle{display:block;text-align:center;color:var(--muted);margin-bottom:26px;font-size:16px;}
+    
+    .form-container{
+      background:#fafafa;
+      border-radius:16px;
+      padding:32px;
+      border:1px solid var(--table-border);
+    }
+    
+    .form-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:24px;
+      margin-bottom:24px;
+    }
+    
+    .form-group{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    
+    .form-group.full-width{
+      grid-column:1 / -1;
+    }
+    
+    .form-label{
+      font-weight:600;
+      color:var(--muted);
+      font-size:14px;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    
+    .form-input, .form-select{
+      padding:12px 16px;
+      border:2px solid var(--input-border);
+      border-radius:12px;
+      font-size:16px;
+      font-family:inherit;
+      transition:all 0.2s;
+      background:white;
+    }
+    
+    .form-input:focus, .form-select:focus{
+      outline:none;
+      border-color:var(--input-focus);
+      box-shadow:0 0 0 3px rgba(59,130,246,0.1);
+    }
+    
+    .form-input[required]{
+      border-left:4px solid var(--accent);
+    }
+    
+    .type-selector{
+      display:grid;
+      grid-template-columns:repeat(3, 1fr);
+      gap:12px;
+      margin-top:8px;
+    }
+    
+    .type-option{
+      position:relative;
+    }
+    
+    .type-radio{
+      position:absolute;
+      opacity:0;
+      pointer-events:none;
+    }
+    
+    .type-label{
+      display:block;
+      padding:12px 16px;
+      border:2px solid var(--input-border);
+      border-radius:12px;
+      text-align:center;
+      cursor:pointer;
+      transition:all 0.2s;
+      font-weight:500;
+      background:white;
+    }
+    
+    .type-radio:checked + .type-label{
+      border-color:var(--accent);
+      background:var(--accent);
+      color:white;
+    }
+    
+    .customer-label{ border-left:4px solid var(--info); }
+    .vendor-label{ border-left:4px solid var(--warning); }
+    .both-label{ border-left:4px solid var(--success); }
+    
+    .file-input-wrapper{
+      position:relative;
+      overflow:hidden;
+      display:inline-block;
+      width:100%;
+    }
+    
+    .file-input{
+      position:absolute;
+      left:-9999px;
+    }
+    
+    .file-input-label{
+      display:block;
+      padding:12px 16px;
+      border:2px dashed var(--input-border);
+      border-radius:12px;
+      text-align:center;
+      cursor:pointer;
+      transition:all 0.2s;
+      background:white;
+      color:var(--muted);
+    }
+    
+    .file-input-label:hover{
+      border-color:var(--accent);
+      background:#fef2f2;
+    }
+    
+    .form-actions{
+      display:flex;
+      gap:16px;
+      justify-content:center;
+      margin-top:32px;
+      padding-top:24px;
+      border-top:1px solid var(--table-border);
+    }
+    
+    .btn{
+      padding:12px 24px;
+      border-radius:12px;
+      font-weight:600;
+      font-size:16px;
+      text-decoration:none;
+      border:none;
+      cursor:pointer;
+      transition:all 0.2s;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    
+    .btn-primary{
+      background:var(--accent);
+      color:white;
+    }
+    
+    .btn-primary:hover{
+      background:#dc2626;
+      transform:translateY(-1px);
+      box-shadow:0 4px 12px rgba(239,68,68,0.3);
+    }
+    
+    .btn-secondary{
+      background:var(--muted);
+      color:white;
+    }
+    
+    .btn-secondary:hover{
+      background:#374151;
+      transform:translateY(-1px);
+    }
+    
+    .password-section{
+      background:#f0f9ff;
+      border:1px solid #bae6fd;
+      border-radius:12px;
+      padding:20px;
+      margin-top:16px;
+    }
+    
+    .password-header{
+      font-weight:600;
+      color:var(--info);
+      margin-bottom:12px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    
+    .password-note{
+      font-size:14px;
+      color:var(--muted);
+      margin-bottom:16px;
+    }
+    
+    @media (max-width: 768px) {
+      .form-grid{ grid-template-columns:1fr; gap:16px; }
+      .type-selector{ grid-template-columns:1fr; }
+      .frame{ padding:20px; }
+      .form-actions{ flex-direction:column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div class="left-links">
+        <span>Contact Management</span>
+      </div>
+      <div style="flex:1"></div>
+      <div class="right-links">
+        <a href="{% url 'contacts_list' %}" class="back-btn">← Back to Contacts</a>
+      </div>
     </div>
-    <div class="mb-2"><label>Email</label><input name="email" type="email" class="form-control"/></div>
-    <div class="mb-2"><label>Phone</label><input name="mobile" class="form-control"/></div>
-    <div class="mb-2"><label>City</label><input name="city" class="form-control"/></div>
-    <div class="mb-2"><label>State</label><input name="state" class="form-control"/></div>
-    <div class="mb-2"><label>Pincode</label><input name="pincode" class="form-control"/></div>
-    <div class="mb-2"><label>Profile Image</label><input type="file" name="profile_image" class="form-control"/></div>
-    <button class="btn btn-primary">Create</button>
-    <a href="{% url 'contacts_list' %}" class="btn btn-secondary">Back</a>
-  </form>
-</div>
+
+    <h1>Add New Contact</h1>
+    <div class="subtitle">Create a new customer or vendor contact</div>
+
+    <div class="form-container">
+      <form method="post" enctype="multipart/form-data">{% csrf_token %}
+        <div class="form-grid">
+          <!-- Name -->
+          <div class="form-group full-width">
+            <label class="form-label">Contact Name *</label>
+            <input name="name" class="form-input" required placeholder="Enter full name" />
+          </div>
+
+          <!-- Contact Type -->
+          <div class="form-group full-width">
+            <label class="form-label">Contact Type</label>
+            <div class="type-selector">
+              <div class="type-option">
+                <input type="radio" name="contact_type" value="customer" id="type_customer" class="type-radio" checked>
+                <label for="type_customer" class="type-label customer-label">Customer</label>
+              </div>
+              <div class="type-option">
+                <input type="radio" name="contact_type" value="vendor" id="type_vendor" class="type-radio">
+                <label for="type_vendor" class="type-label vendor-label">Vendor</label>
+              </div>
+              <div class="type-option">
+                <input type="radio" name="contact_type" value="both" id="type_both" class="type-radio">
+                <label for="type_both" class="type-label both-label">Both</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Email -->
+          <div class="form-group">
+            <label class="form-label">Email Address</label>
+            <input name="email" type="email" class="form-input" placeholder="contact@example.com" />
+          </div>
+
+          <!-- Phone -->
+          <div class="form-group">
+            <label class="form-label">Mobile Number</label>
+            <input name="mobile" class="form-input" placeholder="+91 9876543210" />
+          </div>
+
+          <!-- City -->
+          <div class="form-group">
+            <label class="form-label">City</label>
+            <input name="city" class="form-input" placeholder="Enter city" />
+          </div>
+
+          <!-- State -->
+          <div class="form-group">
+            <label class="form-label">State</label>
+            <input name="state" class="form-input" placeholder="Enter state" />
+          </div>
+
+          <!-- Pincode -->
+          <div class="form-group">
+            <label class="form-label">Pincode</label>
+            <input name="pincode" class="form-input" placeholder="123456" />
+          </div>
+
+          <!-- Profile Image -->
+          <div class="form-group">
+            <label class="form-label">Profile Image</label>
+            <div class="file-input-wrapper">
+              <input type="file" name="profile_image" class="file-input" id="profile_image" accept="image/*">
+              <label for="profile_image" class="file-input-label">
+                📁 Choose Image File
+                <br><small>JPG, PNG, GIF (Max 5MB)</small>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Password Section for Customer Portal -->
+        <div class="password-section">
+          <div class="password-header">
+            🔐 Customer Portal Access
+          </div>
+          <div class="password-note">
+            Set a password to allow this contact to access the customer portal and view their invoices online.
+          </div>
+          <div class="form-group">
+            <label class="form-label">Portal Password (Optional)</label>
+            <input name="password" type="password" class="form-input" placeholder="Leave blank to disable portal access" />
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">
+            ✓ Create Contact
+          </button>
+          <a href="{% url 'contacts_list' %}" class="btn btn-secondary">
+            ✕ Cancel
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // File input enhancement
+    document.getElementById('profile_image').addEventListener('change', function(e) {
+      const label = document.querySelector('.file-input-label');
+      if (e.target.files.length > 0) {
+        const fileName = e.target.files[0].name;
+        label.innerHTML = `📁 ${fileName}<br><small>File selected</small>`;
+        label.style.borderColor = 'var(--success)';
+        label.style.background = '#f0fdf4';
+      } else {
+        label.innerHTML = '📁 Choose Image File<br><small>JPG, PNG, GIF (Max 5MB)</small>';
+        label.style.borderColor = 'var(--input-border)';
+        label.style.background = 'white';
+      }
+    });
+
+    // Form validation enhancement
+    document.querySelector('form').addEventListener('submit', function(e) {
+      const name = document.querySelector('input[name="name"]').value.trim();
+      if (!name) {
+        e.preventDefault();
+        alert('Please enter a contact name.');
+        return;
+      }
+      
+      const email = document.querySelector('input[name="email"]').value.trim();
+      if (email && !email.includes('@')) {
+        e.preventDefault();
+        alert('Please enter a valid email address.');
+        return;
+      }
+    });
+  </script>
+</body>
+</html>
 {% endblock %}

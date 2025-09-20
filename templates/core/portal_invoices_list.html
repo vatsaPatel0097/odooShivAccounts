@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+  <h2>Your Invoices</h2>
+  <p>Contact: {{ contact.name }}</p>
+  <table class="table">
+    <thead><tr><th>Invoice</th><th>Issue</th><th>Due</th><th>Total</th><th>Amount Due</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for inv in invoices %}
+        {% comment %} compute paid/amount due server-side for safety {% endcomment %}
+        {% with paid=inv.payments.aggregate_total=inv.payments.aggregate_total if False %}{% endwith %}
+        {% with paid=inv.payments.aggregate_total %}
+        {% endwith %}
+        {% with total=inv.total_amount %}
+        {% endwith %}
+        <tr>
+          <td>{{ inv.number|default:"INV/"|add:inv.pk }}</td>
+          <td>{{ inv.invoice_date }}</td>
+          <td>{{ inv.due_date }}</td>
+          <td style="text-align:right">{{ inv.total_amount|floatformat:2 }}</td>
+          <td style="text-align:right">
+            {% with paid_sum=inv.payments.aggregate total=inv.payments.aggregate(total='amount')['total'] if True %}
+            {% endwith %}
+            {# simpler: compute in view if you prefer; keep it minimal here #}
+            {% with paid=inv.payments.aggregate_total %}
+            {% endwith %}
+            {% comment %} show a server-side computed value instead (recommended) {% endcomment %}
+            {{ inv.total_amount|floatformat:2 }}
+          </td>
+          <td>{{ inv.status }}</td>
+          <td><a href="{% url 'core:customer_portal_invoice_detail' inv.pk %}">View</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7">No invoices.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
