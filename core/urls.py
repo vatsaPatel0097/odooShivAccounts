@@ -36,9 +36,30 @@ path('accounts/new/', views.accounts_add, name='accounts_add'),
 path('accounts/<int:pk>/edit/', views.accounts_edit, name='accounts_edit'),
 path('accounts/<int:pk>/delete/', views.accounts_delete, name='accounts_delete'),
 
+# path('purchase_orders/', views.purchase_order_list, name='purchase_order_list'),
+# path('purchase_orders/new/', views.purchase_order_add, name='purchase_order_add'),
+# yourapp/urls.py
+path('purchase_orders/', views.purchase_orders_list, name='purchase_orders_list'),
+path('purchase_orders/new/', views.purchase_order_add, name='purchase_order_add'),
+path('purchase_orders/<int:pk>/', views.purchase_order_detail, name='purchase_order_detail'),
+path('purchase_orders/<int:pk>/convert/', views.purchase_order_convert_to_bill, name='purchase_order_convert_to_bill'),
 
 path('ajax/active_taxes/', views.ajax_active_taxes, name='ajax_active_taxes'),
+path('vendor_bills/<int:pk>/confirm/', views.vendor_bill_confirm, name='vendor_bill_confirm'),
+path('products/info/<int:pk>/', views.product_info, name='product_info'),
 
+# yourapp/urls.py
+path('vendor_bills/', views.vendor_bills_list, name='vendor_bills_list'),
+path('vendor_bills/new/', views.vendor_bill_add, name='vendor_bill_add'),
+# path('vendor_bills/<int:pk>/', views.vendor_bill_detail, name='vendor_bill_detail'),
+# path('vendor_bills/<int:pk>/confirm/', views.vendor_bill_confirm_view, name='vendor_bill_confirm'),
+path('vendor_bills/<int:bill_pk>/payments/new/', views.payment_add, name='payment_add'),
 
+# path('vendor_bills/<int:pk>/confirm/', views.vendor_bill_confirm, name='vendor_bill_confirm'),
+# ensure vendor_bill_detail exists:
+path('vendor_bills/<int:pk>/', views.vendor_bill_detail, name='vendor_bill_detail'),
 
+path('reports/partner/<int:partner_id>/', views.partner_ledger, name='partner_ledger'),
+path('reports/profit-loss/', views.profit_and_loss, name='profit_and_loss'),
+path('reports/balance-sheet/', views.balance_sheet, name='balance_sheet'),
 ]

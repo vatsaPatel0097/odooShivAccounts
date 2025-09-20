@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>New Vendor Bill</h3>
+<form method="post">{% csrf_token %}
+  <div class="mb-2">
+    <label>Vendor</label>
+    <select name="vendor" class="form-control">
+      {% for c in contacts %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="mb-2">
+    <label>Bill Date</label>
+    <input type="date" name="bill_date" class="form-control" value="{{ today|default:None }}">
+  </div>
+  <div class="mb-2"><label>Reference</label><input name="reference" class="form-control"></div>
+
+  <h5>Lines</h5>
+  {% for i in "1234" %}
+    {% with idx=forloop.counter %}
+      <div class="row g-2 mb-2">
+        <div class="col-md-4">
+          <select name="product_{{ idx }}" class="form-control">
+            <option value="">-- select product --</option>
+            {% for p in products %}
+              <option value="{{ p.id }}">{{ p.name }} ({{ p.hsn }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2"><input name="qty_{{ idx }}" placeholder="Qty" class="form-control" /></div>
+        <div class="col-md-2"><input name="unit_price_{{ idx }}" placeholder="Unit price" class="form-control" /></div>
+        <div class="col-md-2"><input name="tax_percent_{{ idx }}" placeholder="Tax %" class="form-control" /></div>
+      </div>
+    {% endwith %}
+  {% endfor %}
+
+  <button class="btn btn-primary">Create Bill</button>
+  <a class="btn btn-secondary" href="{% url 'vendor_bills_list' %}">Back</a>
+</form>
+{% endblock %}

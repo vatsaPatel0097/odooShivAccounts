@@ -3,7 +3,7 @@
 <div class="container py-4" style="max-width:900px;">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h3>Chart of Accounts</h3>
-    <a class="btn btn-success" href="{% url 'accounts_add' %}">New</a>
+    {% comment %} <a class="btn btn-success" href="{% url 'accounts_add' %}">New</a> {% endcomment %}
   </div>
 
   <table class="table table-dark table-striped">
@@ -22,7 +22,7 @@
         <td>{{ a.get_account_type_display }}</td>
         <td>{{ a.code }}</td>
         <td class="text-end">
-          <a class="btn btn-sm btn-outline-light" href="{% url 'accounts_edit' a.id %}">Edit</a>
+          {% comment %} <a class="btn btn-sm btn-outline-light" href="{% url 'accounts_edit' a.id %}">Edit</a> {% endcomment %}
           {% if request.user.role|default:''|lower == 'admin' %}
             <a class="btn btn-sm btn-outline-danger ms-2" href="{% url 'accounts_delete' a.id %}">Delete</a>
           {% endif %}

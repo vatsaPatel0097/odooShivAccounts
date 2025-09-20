@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+  <h2>Balance Sheet</h2>
+
+  <div style="display:flex; gap:30px; align-items:flex-start;">
+    <div style="flex:1;">
+      <div class="card">
+        <div class="card-header">Assets</div>
+        <div class="card-body">
+          {% if assets %}
+            <table class="table">
+              <thead><tr><th>Account</th><th style="text-align:right">Amount</th></tr></thead>
+              <tbody>
+                {% for a in assets %}
+                  <tr><td>{{ a.account.name }}</td><td style="text-align:right">{{ a.amount }}</td></tr>
+                {% endfor %}
+              </tbody>
+              <tfoot><tr><th>Total Assets</th><th style="text-align:right">{{ total_assets }}</th></tr></tfoot>
+            </table>
+          {% else %}
+            <p>No asset accounts</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:1;">
+      <div class="card">
+        <div class="card-header">Liabilities & Equity</div>
+        <div class="card-body">
+          <table class="table">
+            <thead><tr><th>Account</th><th style="text-align:right">Amount</th></tr></thead>
+            <tbody>
+              {% for l in liabilities %}
+                <tr><td>{{ l.account.name }}</td><td style="text-align:right">{{ l.amount }}</td></tr>
+              {% endfor %}
+              <tr><td colspan="2">&nbsp;</td></tr>
+              {% for e in equity %}
+                <tr><td>{{ e.account.name }}</td><td style="text-align:right">{{ e.amount }}</td></tr>
+              {% endfor %}
+            </tbody>
+            <tfoot><tr><th>Total L + E</th><th style="text-align:right">{{ total_liabilities_equity }}</th></tr></tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

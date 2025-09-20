@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Purchase Orders</h3>
+<a class="btn btn-success" href="{% url 'purchase_order_add' %}">New PO</a>
+<table class="table">
+  <thead><tr><th>#</th><th>Vendor</th><th>Date</th><th>Total</th><th>State</th><th></th></tr></thead>
+  <tbody>
+    {% for po in pos %}
+    <tr>
+      <td>{{ po.pk }}</td>
+      <td>{{ po.vendor }}</td>
+      <td>{{ po.po_date }}</td>
+      <td>{{ po.total }}</td>
+      <td>{{ po.state }}</td>
+      <td>
+        <a href="{% url 'purchase_order_detail' po.pk %}">View</a>
+        {% if po.state == 'draft' %}
+          <a href="{% url 'purchase_order_convert_to_bill' po.pk %}" class="ms-2">Convert to Bill</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

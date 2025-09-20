@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Record Payment for Bill #{{ bill.pk }}</h3>
+<p>Vendor: {{ bill.vendor }}</p>
+<p>Outstanding: {{ outstanding }}</p>
+
+<form method="post">{% csrf_token %}
+  <div class="mb-2">
+    <label>Amount</label>
+    <input name="amount" class="form-control" value="{{ outstanding }}" />
+  </div>
+  <div class="mb-2">
+    <label>Account (Cash/Bank)</label>
+    <select name="account" class="form-control">
+      {% for a in accounts %}
+        <option value="{{ a.id }}">{{ a.name }} ({{ a.get_account_type_display }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="mb-2">
+    <label>Method</label>
+    <select name="method" class="form-control">
+      <option value="bank">Bank</option>
+      <option value="cash">Cash</option>
+      <option value="cheque">Cheque</option>
+    </select>
+  </div>
+  <div class="mb-2">
+    <label>Reference</label>
+    <input name="reference" class="form-control" />
+  </div>
+
+  <button class="btn btn-primary">Record Payment</button>
+  <a class="btn btn-secondary" href="{% url 'vendor_bill_detail' bill.pk %}">Back</a>
+</form>
+{% endblock %}

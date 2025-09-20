@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Confirm Bill {{ bill.pk }}</h3>
+<p>Vendor: {{ bill.vendor }}</p>
+<p>Date: {{ bill.bill_date }}</p>
+<p>Total: 
+  {% with net=0 tax=0 %}
+    {% for L in bill.lines.all %}
+      {% with net=net|add:L.unit_price|floatformat:2 %}{% endwith %}
+    {% endfor %}
+  {% endwith %}
+</p>
+
+<form method="post" action="{% url 'vendor_bill_confirm' bill.id %}">
+    {% csrf_token %}
+    <button class="btn btn-danger">Confirm & Post Journal</button>
+    <a class="btn btn-secondary" href="{% url 'vendor_bills_list' %}">Cancel</a>
+  </form>
+  
+{% endblock %}

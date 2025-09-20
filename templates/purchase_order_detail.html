@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Purchase Order #{{ po.pk }}</h3>
+<p>Vendor: {{ po.vendor }}</p>
+<p>Date: {{ po.po_date }} | State: {{ po.state }}</p>
+
+<table class="table">
+  <thead><tr><th>Product</th><th>HSN</th><th>Qty</th><th>Price</th><th>Tax</th><th>Total</th></tr></thead>
+  <tbody>
+    {% for L in po.lines.all %}
+    <tr>
+      <td>{{ L.product }}</td>
+      <td>{{ L.hsn }}</td>
+      <td>{{ L.qty }}</td>
+      <td>{{ L.unit_price }}</td>
+      <td>{{ L.tax_amount }}</td>
+      <td>{{ L.line_total }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if po.state == 'draft' %}
+  <a class="btn btn-primary" href="{% url 'purchase_order_convert_to_bill' po.pk %}">Convert to Vendor Bill</a>
+{% endif %}
+<a class="btn btn-secondary" href="{% url 'purchase_orders_list' %}">Back</a>
+{% endblock %}

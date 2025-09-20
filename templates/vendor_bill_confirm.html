@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h3>Confirm Bill {{ bill.pk }}</h3>
+  <p>Vendor: {{ bill.vendor }}</p>
+  <p>Date: {{ bill.bill_date }}</p>
+  <p>Total: {{ bill.lines.aggregate_net|default:"" }}</p> <!-- compute totals in view or template -->
+  <form method="post">{% csrf_token %}
+    <button class="btn btn-primary">Confirm and Post Journal</button>
+    <a class="btn btn-secondary" href="{% url 'vendor_bill_detail' bill.pk %}">Back</a>
+  </form>
+{% endblock %}

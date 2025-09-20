@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Vendor Bills</h3>
+<a class="btn btn-success" href="{% url 'vendor_bill_add' %}">New Bill</a>
+<table class="table">
+  <thead><tr><th>#</th><th>Vendor</th><th>Date</th><th>Total</th><th>State</th><th></th></tr></thead>
+  <tbody>
+    {% for b in bills %}
+    <tr>
+      <td>{{ b.pk }}</td>
+      <td>{{ b.vendor }}</td>
+      <td>{{ b.bill_date }}</td>
+      <td>{{ b.lines.all|sum:"line_total" }}</td>
+      <td>{{ b.state }}</td>
+      <td><a href="{% url 'vendor_bill_detail' b.pk %}">View</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
