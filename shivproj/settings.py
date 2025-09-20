@@ -56,8 +56,8 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 STATIC_URL = '/static/'
 
-RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "<put_test_key_id_here>")
-RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "<put_test_key_secret_here>")
+RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "rzp_test_RK0mPCvW1a0Rsg")
+RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "wNfyPR8XK5HPuCfJW4na5fZb")
 RAZORPAY_WEBHOOK_SECRET = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "<put_if_using_webhook>")
 
 

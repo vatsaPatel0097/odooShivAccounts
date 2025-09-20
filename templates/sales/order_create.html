@@ -1,101 +1,389 @@
 {% extends 'base.html' %}
+{% load static %}
+
 {% block content %}
-<div class="card p-4" style="max-width:1100px;">
-  <h3>New Sales Order</h3>
-
-  <form method="post" id="soForm">{% csrf_token %}
-    <div class="mb-3">
-      <label>Customer</label>
-      <select name="customer" class="form-control" required>
-        <option value="">-- select customer --</option>
-        {% for c in contacts %}
-          <option value="{{ c.id }}">{{ c.name }}</option>
-        {% endfor %}
-      </select>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Create Sales Order</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --card:#ffffff;
+      --accent:#ef4444;
+      --circle:#f05252;
+      --muted:#475569;
+      --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+      --success:#10b981;
+      --warning:#f59e0b;
+      --info:#3b82f6;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:40px;
+    }
+    .frame{
+      width:95%;
+      max-width:1200px;
+      background:var(--card);
+      border-radius:24px;
+      padding:34px 48px;
+      box-shadow: var(--soft-shadow);
+      position:relative;
+      overflow:hidden;
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:32px;
+      padding-bottom:20px;
+      border-bottom:2px solid #f1f5f9;
+    }
+    .nav-links{
+      display:flex;
+      gap:24px;
+    }
+    .nav-links a{
+      color:var(--muted);
+      text-decoration:none;
+      font-weight:500;
+      padding:8px 16px;
+      border-radius:8px;
+      transition:all 0.2s;
+    }
+    .nav-links a:hover{
+      background:#f8fafc;
+      color:var(--accent);
+    }
+    .main-title{
+      font-size:2.5rem;
+      font-weight:800;
+      color:#1e293b;
+      margin:0 0 8px 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle{
+      color:var(--muted);
+      font-size:1.1rem;
+      margin:0 0 32px 0;
+    }
+    .form-section{
+      background:#f8fafc;
+      padding:24px;
+      border-radius:16px;
+      margin-bottom:24px;
+    }
+    .section-title{
+      font-size:1.3rem;
+      font-weight:700;
+      color:#1e293b;
+      margin:0 0 20px 0;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .section-icon{
+      width:32px;
+      height:32px;
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:white;
+      font-size:1.2rem;
+    }
+    .form-row{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:20px;
+      margin-bottom:20px;
+    }
+    .form-group{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .form-group.full-width{
+      grid-column:1 / -1;
+    }
+    .form-label{
+      font-weight:600;
+      color:#374151;
+      font-size:0.95rem;
+    }
+    .form-input, .form-select{
+      padding:12px 16px;
+      border:2px solid #e5e7eb;
+      border-radius:12px;
+      font-size:1rem;
+      transition:all 0.2s;
+      background:white;
+    }
+    .form-input:focus, .form-select:focus{
+      outline:none;
+      border-color:#667eea;
+      box-shadow:0 0 0 3px rgba(102,126,234,0.1);
+    }
+    .lines-section{
+      background:white;
+      border-radius:16px;
+      padding:24px;
+      margin-bottom:24px;
+      border:2px solid #f1f5f9;
+      overflow-x:auto;
+    }
+    .lines-table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0 4px;
+      margin-top:16px;
+    }
+    .lines-table thead th{
+      background:#f8fafc;
+      color:var(--muted);
+      font-weight:600;
+      padding:12px 8px;
+      text-align:left;
+      border:none;
+      font-size:0.85rem;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+      white-space:nowrap;
+    }
+    .lines-table thead th:first-child{border-radius:8px 0 0 8px}
+    .lines-table thead th:last-child{border-radius:0 8px 8px 0}
+    .lines-table tbody tr{
+      background:white;
+      transition:all 0.2s;
+    }
+    .lines-table tbody tr:hover{
+      background:#f8fafc;
+    }
+    .lines-table tbody td{
+      padding:8px;
+      border:none;
+      vertical-align:middle;
+    }
+    .lines-table tbody td:first-child{
+      border-radius:8px 0 0 8px;
+      text-align:center;
+      font-weight:600;
+      color:var(--muted);
+    }
+    .lines-table tbody td:last-child{border-radius:0 8px 8px 0}
+    .lines-table tfoot th{
+      background:#f1f5f9;
+      padding:12px 8px;
+      border:none;
+      font-weight:700;
+      color:#1e293b;
+    }
+    .lines-table tfoot th:first-child{border-radius:8px 0 0 8px}
+    .lines-table tfoot th:last-child{border-radius:0 8px 8px 0}
+    .table-input, .table-select{
+      width:100%;
+      padding:8px 10px;
+      border:1px solid #e5e7eb;
+      border-radius:6px;
+      font-size:0.9rem;
+      transition:all 0.2s;
+      background:white;
+    }
+    .table-input:focus, .table-select:focus{
+      outline:none;
+      border-color:#667eea;
+      box-shadow:0 0 0 2px rgba(102,126,234,0.1);
+    }
+    .table-input[readonly]{
+      background:#f8fafc;
+      color:var(--muted);
+    }
+    .form-actions{
+      display:flex;
+      gap:16px;
+      justify-content:center;
+      margin-top:32px;
+    }
+    .btn{
+      padding:14px 28px;
+      border-radius:12px;
+      font-weight:600;
+      font-size:1rem;
+      text-decoration:none;
+      border:none;
+      cursor:pointer;
+      transition:all 0.2s;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    .btn-success{
+      background:linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color:white;
+    }
+    .btn-success:hover{
+      transform:translateY(-2px);
+      box-shadow:0 8px 25px rgba(16,185,129,0.3);
+    }
+    .btn-secondary{
+      background:#f1f5f9;
+      color:var(--muted);
+    }
+    .btn-secondary:hover{
+      background:#e2e8f0;
+      transform:translateY(-1px);
+      color:var(--muted);
+    }
+    @media (max-width:768px){
+      body{padding:20px}
+      .frame{padding:24px}
+      .main-title{font-size:2rem}
+      .form-row{grid-template-columns:1fr;gap:16px}
+      .form-actions{flex-direction:column}
+      .btn{justify-content:center}
+      .lines-section{padding:16px}
+      .lines-table{font-size:0.85rem}
+      .lines-table thead th, .lines-table tbody td, .lines-table tfoot th{padding:6px 4px}
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div class="nav-links">
+        <a href="{% url 'sales_order_list' %}">← Sales Orders</a>
+        <a href="{% url 'dashboard' %}">Dashboard</a>
+      </div>
     </div>
 
-    <div class="row g-2 mb-3">
-      <div class="col-md-4">
-        <label>SO Date</label>
-        <input type="date" name="so_date" class="form-control" value="{{ today|default:None }}">
-      </div>
-      <div class="col-md-8">
-        <label>Reference (optional)</label>
-        <input type="text" name="reference" class="form-control" placeholder="Leave empty to auto-generate">
-      </div>
-    </div>
+    <h1 class="main-title">New Sales Order</h1>
+    <p class="subtitle">Create a new sales order with line items and customer details</p>
 
-    <h5>Order Lines</h5>
-    <table class="table table-bordered" id="linesTable">
-      <thead class="table-light">
-        <tr>
-          <th style="width:36px">#</th>
-          <th style="width:320px">Product</th>
-          <th style="width:100px">Qty</th>
-          <th style="width:120px">Unit Price</th>
-          <th style="width:100px">Tax %</th>
-          <th style="width:120px">Untaxed</th>
-          <th style="width:120px">Tax Amt</th>
-          <th style="width:120px">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for i in "12345" %}
-        <tr data-line="{{ forloop.counter }}">
-          <td class="align-middle">{{ forloop.counter }}</td>
-
-          <td>
-            <select name="product_{{ forloop.counter }}" class="form-control product-select">
-              <option value="">--select--</option>
-              {% for p in products %}
-                <option value="{{ p.id }}">{{ p.name }}{% if p.hsn %} ({{ p.hsn }}){% endif %}</option>
+    <form method="post" id="soForm">{% csrf_token %}
+      <div class="form-section">
+        <div class="section-title">
+          <div class="section-icon">👤</div>
+          Customer Information
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group full-width">
+            <label class="form-label">Customer *</label>
+            <select name="customer" class="form-select" required>
+              <option value="">-- select customer --</option>
+              {% for c in contacts %}
+                <option value="{{ c.id }}">{{ c.name }}</option>
               {% endfor %}
             </select>
-          </td>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label">SO Date</label>
+            <input type="date" name="so_date" class="form-input" value="{{ today|default:None }}">
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label">Reference (optional)</label>
+            <input type="text" name="reference" class="form-input" placeholder="Leave empty to auto-generate">
+          </div>
+        </div>
+      </div>
 
-          <td>
-            <input type="number" min="0" step="1" name="qty_{{ forloop.counter }}" value="1" class="form-control qty" />
-          </td>
+      <div class="lines-section">
+        <div class="section-title">
+          <div class="section-icon">📦</div>
+          Order Lines
+        </div>
+        
+        <table class="lines-table" id="linesTable">
+          <thead>
+            <tr>
+              <th style="width:36px">#</th>
+              <th style="width:320px">Product</th>
+              <th style="width:100px">Qty</th>
+              <th style="width:120px">Unit Price</th>
+              <th style="width:100px">Tax %</th>
+              <th style="width:120px">Untaxed</th>
+              <th style="width:120px">Tax Amt</th>
+              <th style="width:120px">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for i in "12345" %}
+            <tr data-line="{{ forloop.counter }}">
+              <td>{{ forloop.counter }}</td>
 
-          <td>
-            <input type="number" step="0.01" name="unit_price_{{ forloop.counter }}" class="form-control unit-price" />
-          </td>
+              <td>
+                <select name="product_{{ forloop.counter }}" class="table-select product-select">
+                  <option value="">--select--</option>
+                  {% for p in products %}
+                    <option value="{{ p.id }}">{{ p.name }}{% if p.hsn %} ({{ p.hsn }}){% endif %}</option>
+                  {% endfor %}
+                </select>
+              </td>
 
-          <td>
-            <input type="number" step="0.01" name="tax_percent_{{ forloop.counter }}" class="form-control tax-percent" />
-          </td>
+              <td>
+                <input type="number" min="0" step="1" name="qty_{{ forloop.counter }}" value="1" class="table-input qty" />
+              </td>
 
-          <td>
-            <input type="text" class="form-control untaxed" readonly />
-          </td>
+              <td>
+                <input type="number" step="0.01" name="unit_price_{{ forloop.counter }}" class="table-input unit-price" />
+              </td>
 
-          <td>
-            <input type="text" class="form-control tax-amt" readonly />
-          </td>
+              <td>
+                <input type="number" step="0.01" name="tax_percent_{{ forloop.counter }}" class="table-input tax-percent" />
+              </td>
 
-          <td>
-            <input type="text" class="form-control line-total" readonly />
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
+              <td>
+                <input type="text" class="table-input untaxed" readonly />
+              </td>
 
-      <tfoot>
-        <tr>
-          <td colspan="5" class="text-end fw-bold">Subtotals:</td>
-          <td><input type="text" id="subtotal_untaxed" name="subtotal_untaxed" class="form-control" readonly /></td>
-          <td><input type="text" id="subtotal_tax" name="subtotal_tax" class="form-control" readonly /></td>
-          <td><input type="text" id="subtotal_total" name="subtotal_total" class="form-control" readonly /></td>
-        </tr>
-      </tfoot>
-    </table>
+              <td>
+                <input type="text" class="table-input tax-amt" readonly />
+              </td>
 
-    <div class="mt-3">
-      <button class="btn btn-success" id="createBtn">Create SO</button>
-      <a class="btn btn-secondary" href="{% url 'sales_order_list' %}">Back</a>
-    </div>
-  </form>
-</div>
+              <td>
+                <input type="text" class="table-input line-total" readonly />
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+
+          <tfoot>
+            <tr>
+              <th colspan="5" style="text-align:right">Subtotals:</th>
+              <th><input type="text" id="subtotal_untaxed" name="subtotal_untaxed" class="table-input" readonly /></th>
+              <th><input type="text" id="subtotal_tax" name="subtotal_tax" class="table-input" readonly /></th>
+              <th><input type="text" id="subtotal_total" name="subtotal_total" class="table-input" readonly /></th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="form-actions">
+        <a class="btn btn-secondary" href="{% url 'sales_order_list' %}">Cancel</a>
+        <button class="btn btn-success" id="createBtn" type="submit">
+          <span>✓</span> Create Sales Order
+        </button>
+      </div>
+    </form>
+  </div>
+</body>
+</html>
 
 <script>
 (function(){

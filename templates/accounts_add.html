@@ -1,31 +1,370 @@
 {% extends 'base.html' %}
+{% load static %}
+
 {% block content %}
-<div class="container py-4" style="max-width:600px;">
-  <h4>New Account</h4>
-  {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
-  <form method="post">{% csrf_token %}
-    <div class="mb-3">
-      <label>Account Name</label>
-      <input name="name" class="form-control" required>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>New Account</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --card:#ffffff;
+      --accent:#ef4444;
+      --circle:#f05252;
+      --muted:#475569;
+      --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+      --success:#10b981;
+      --warning:#f59e0b;
+      --info:#3b82f6;
+      --asset:#8b5cf6;
+      --liability:#f59e0b;
+      --income:#10b981;
+      --expense:#ef4444;
+      --equity:#3b82f6;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:40px;
+    }
+    .frame{
+      width:95%;
+      max-width:700px;
+      background:var(--card);
+      border-radius:24px;
+      padding:34px 48px;
+      box-shadow: var(--soft-shadow);
+      position:relative;
+      overflow:hidden;
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:32px;
+      padding-bottom:20px;
+      border-bottom:2px solid #f1f5f9;
+    }
+    .nav-links{
+      display:flex;
+      gap:24px;
+    }
+    .nav-links a{
+      color:var(--muted);
+      text-decoration:none;
+      font-weight:500;
+      padding:8px 16px;
+      border-radius:8px;
+      transition:all 0.2s;
+    }
+    .nav-links a:hover{
+      background:#f8fafc;
+      color:var(--accent);
+    }
+    .main-title{
+      font-size:2.5rem;
+      font-weight:800;
+      color:#1e293b;
+      margin:0 0 8px 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle{
+      color:var(--muted);
+      font-size:1.1rem;
+      margin:0 0 32px 0;
+    }
+    .error-alert{
+      background:#fee2e2;
+      color:#dc2626;
+      padding:16px 20px;
+      border-radius:12px;
+      margin-bottom:24px;
+      border-left:4px solid #dc2626;
+    }
+    .form-section{
+      background:#f8fafc;
+      padding:32px;
+      border-radius:16px;
+      margin-bottom:24px;
+    }
+    .section-title{
+      font-size:1.3rem;
+      font-weight:700;
+      color:#1e293b;
+      margin:0 0 20px 0;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .section-icon{
+      width:32px;
+      height:32px;
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:white;
+      font-size:1.2rem;
+    }
+    .form-group{
+      margin-bottom:24px;
+    }
+    .form-label{
+      display:block;
+      font-weight:600;
+      color:#374151;
+      margin-bottom:8px;
+      font-size:0.95rem;
+    }
+    .form-input{
+      width:100%;
+      padding:14px 16px;
+      border:2px solid #e5e7eb;
+      border-radius:12px;
+      font-size:1rem;
+      transition:all 0.2s;
+      background:white;
+    }
+    .form-input:focus{
+      outline:none;
+      border-color:#667eea;
+      box-shadow:0 0 0 3px rgba(102,126,234,0.1);
+    }
+    .form-select{
+      width:100%;
+      padding:14px 16px;
+      border:2px solid #e5e7eb;
+      border-radius:12px;
+      font-size:1rem;
+      transition:all 0.2s;
+      background:white;
+      cursor:pointer;
+    }
+    .form-select:focus{
+      outline:none;
+      border-color:#667eea;
+      box-shadow:0 0 0 3px rgba(102,126,234,0.1);
+    }
+    .type-options{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:12px;
+      margin-top:8px;
+    }
+    .type-option{
+      display:none;
+    }
+    .type-option + label{
+      display:flex;
+      align-items:center;
+      padding:16px 20px;
+      border:2px solid #e5e7eb;
+      border-radius:12px;
+      cursor:pointer;
+      transition:all 0.2s;
+      background:white;
+    }
+    .type-option:checked + label{
+      border-color:var(--accent);
+      background:#fef2f2;
+    }
+    .type-asset:checked + label{border-color:var(--asset);background:#f3f4f6}
+    .type-liability:checked + label{border-color:var(--liability);background:#fffbeb}
+    .type-income:checked + label{border-color:var(--income);background:#ecfdf5}
+    .type-expense:checked + label{border-color:var(--expense);background:#fef2f2}
+    .type-equity:checked + label{border-color:var(--equity);background:#eff6ff}
+    .type-label{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      width:100%;
+    }
+    .type-icon{
+      width:24px;
+      height:24px;
+      border-radius:6px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:white;
+      font-size:0.9rem;
+      font-weight:600;
+    }
+    .type-asset .type-icon{background:var(--asset)}
+    .type-liability .type-icon{background:var(--liability)}
+    .type-income .type-icon{background:var(--income)}
+    .type-expense .type-icon{background:var(--expense)}
+    .type-equity .type-icon{background:var(--equity)}
+    .type-info{
+      flex:1;
+    }
+    .type-name{
+      font-weight:600;
+      color:#1f2937;
+      margin-bottom:2px;
+    }
+    .type-desc{
+      font-size:0.85rem;
+      color:var(--muted);
+    }
+    .form-actions{
+      display:flex;
+      gap:16px;
+      justify-content:flex-end;
+      margin-top:32px;
+    }
+    .btn{
+      padding:14px 28px;
+      border-radius:12px;
+      font-weight:600;
+      font-size:1rem;
+      text-decoration:none;
+      border:none;
+      cursor:pointer;
+      transition:all 0.2s;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    .btn-primary{
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color:white;
+    }
+    .btn-primary:hover{
+      transform:translateY(-2px);
+      box-shadow:0 8px 25px rgba(102,126,234,0.3);
+    }
+    .btn-secondary{
+      background:#f1f5f9;
+      color:var(--muted);
+    }
+    .btn-secondary:hover{
+      background:#e2e8f0;
+      transform:translateY(-1px);
+    }
+    @media (max-width:768px){
+      body{padding:20px}
+      .frame{padding:24px}
+      .main-title{font-size:2rem}
+      .form-section{padding:24px}
+      .form-actions{flex-direction:column}
+      .btn{justify-content:center}
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div class="nav-links">
+        <a href="{% url 'accounts_list' %}">← Accounts</a>
+        <a href="{% url 'dashboard' %}">Dashboard</a>
+      </div>
     </div>
-    <div class="mb-3">
-      <label>Type</label>
-      <select name="account_type" class="form-control">
-        <option value="asset">Asset</option>
-        <option value="liability">Liability</option>
-        <option value="income">Income</option>
-        <option value="expense">Expense</option>
-        <option value="equity">Equity</option>
-      </select>
-    </div>
-    <div class="mb-3">
-      <label>Code (optional)</label>
-      <input name="code" class="form-control">
-    </div>
-    <div class="d-flex gap-2">
-      <button class="btn btn-primary">Create</button>
-      <a class="btn btn-secondary" href="{% url 'accounts_list' %}">Back</a>
-    </div>
-  </form>
-</div>
+
+    <h1 class="main-title">New Account</h1>
+    <p class="subtitle">Create a new account for your chart of accounts</p>
+
+    {% if error %}
+      <div class="error-alert">{{ error }}</div>
+    {% endif %}
+
+    <form method="post">{% csrf_token %}
+      <div class="form-section">
+        <div class="section-title">
+          <div class="section-icon">📊</div>
+          Account Details
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Account Name *</label>
+          <input name="name" class="form-input" required placeholder="Enter account name (e.g., Cash, Bank Account, Sales Revenue)">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Account Type *</label>
+          <div class="type-options">
+            <input type="radio" name="account_type" value="asset" id="type_asset" class="type-option type-asset" required>
+            <label for="type_asset" class="type-asset">
+              <div class="type-label">
+                <div class="type-icon">A</div>
+                <div class="type-info">
+                  <div class="type-name">Asset</div>
+                  <div class="type-desc">Resources owned by the business (Cash, Inventory, Equipment)</div>
+                </div>
+              </div>
+            </label>
+
+            <input type="radio" name="account_type" value="liability" id="type_liability" class="type-option type-liability">
+            <label for="type_liability" class="type-liability">
+              <div class="type-label">
+                <div class="type-icon">L</div>
+                <div class="type-info">
+                  <div class="type-name">Liability</div>
+                  <div class="type-desc">Debts and obligations (Accounts Payable, Loans)</div>
+                </div>
+              </div>
+            </label>
+
+            <input type="radio" name="account_type" value="income" id="type_income" class="type-option type-income">
+            <label for="type_income" class="type-income">
+              <div class="type-label">
+                <div class="type-icon">I</div>
+                <div class="type-info">
+                  <div class="type-name">Income</div>
+                  <div class="type-desc">Revenue and earnings (Sales, Service Revenue)</div>
+                </div>
+              </div>
+            </label>
+
+            <input type="radio" name="account_type" value="expense" id="type_expense" class="type-option type-expense">
+            <label for="type_expense" class="type-expense">
+              <div class="type-label">
+                <div class="type-icon">E</div>
+                <div class="type-info">
+                  <div class="type-name">Expense</div>
+                  <div class="type-desc">Costs and expenditures (Rent, Utilities, Salaries)</div>
+                </div>
+              </div>
+            </label>
+
+            <input type="radio" name="account_type" value="equity" id="type_equity" class="type-option type-equity">
+            <label for="type_equity" class="type-equity">
+              <div class="type-label">
+                <div class="type-icon">Q</div>
+                <div class="type-info">
+                  <div class="type-name">Equity</div>
+                  <div class="type-desc">Owner's stake in the business (Capital, Retained Earnings)</div>
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Account Code (Optional)</label>
+          <input name="code" class="form-input" placeholder="Enter account code (e.g., 1001, ACC001)">
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <a class="btn btn-secondary" href="{% url 'accounts_list' %}">Cancel</a>
+        <button class="btn btn-primary" type="submit">Create Account</button>
+      </div>
+    </form>
+  </div>
+</body>
+</html>
 {% endblock %}

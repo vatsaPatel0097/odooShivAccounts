@@ -1,49 +1,478 @@
 {% extends 'base.html' %}
+{% load static %}
+
 {% block content %}
-<div class="container py-4" style="max-width:700px;">
-  <h4>Edit Tax</h4>
-
-  {% if error %}
-    <div class="alert alert-danger">{{ error }}</div>
-  {% endif %}
-
-  <form method="post">{% csrf_token %}
-    <div class="mb-3">
-      <label class="form-label">Name</label>
-      <input name="name" class="form-control" required value="{{ tax.name }}">
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Edit Tax Configuration</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --card:#ffffff;
+      --accent:#ef4444;
+      --circle:#f05252;
+      --muted:#475569;
+      --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+      --success:#10b981;
+      --warning:#f59e0b;
+      --info:#3b82f6;
+      --percent:#8b5cf6;
+      --fixed:#f59e0b;
+      --both:#10b981;
+      --sales:#3b82f6;
+      --purchase:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:40px;
+    }
+    .frame{
+      width:95%;
+      max-width:800px;
+      background:var(--card);
+      border-radius:24px;
+      padding:34px 48px;
+      box-shadow: var(--soft-shadow);
+      position:relative;
+      overflow:hidden;
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:32px;
+      padding-bottom:20px;
+      border-bottom:2px solid #f1f5f9;
+    }
+    .nav-links{
+      display:flex;
+      gap:24px;
+    }
+    .nav-links a{
+      color:var(--muted);
+      text-decoration:none;
+      font-weight:500;
+      padding:8px 16px;
+      border-radius:8px;
+      transition:all 0.2s;
+    }
+    .nav-links a:hover{
+      background:#f8fafc;
+      color:var(--accent);
+    }
+    .main-title{
+      font-size:2.5rem;
+      font-weight:800;
+      color:#1e293b;
+      margin:0 0 8px 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle{
+      color:var(--muted);
+      font-size:1.1rem;
+      margin:0 0 32px 0;
+    }
+    .error-alert{
+      background:#fee2e2;
+      color:#dc2626;
+      padding:16px 20px;
+      border-radius:12px;
+      margin-bottom:24px;
+      border-left:4px solid #dc2626;
+    }
+    .form-section{
+      background:#f8fafc;
+      padding:32px;
+      border-radius:16px;
+      margin-bottom:24px;
+    }
+    .section-title{
+      font-size:1.3rem;
+      font-weight:700;
+      color:#1e293b;
+      margin:0 0 20px 0;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .section-icon{
+      width:32px;
+      height:32px;
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:white;
+      font-size:1.2rem;
+    }
+    .form-group{
+      margin-bottom:24px;
+    }
+    .form-label{
+      display:block;
+      font-weight:600;
+      color:#374151;
+      margin-bottom:8px;
+      font-size:0.95rem;
+    }
+    .form-input{
+      width:100%;
+      padding:14px 16px;
+      border:2px solid #e5e7eb;
+      border-radius:12px;
+      font-size:1rem;
+      transition:all 0.2s;
+      background:white;
+    }
+    .form-input:focus{
+      outline:none;
+      border-color:#667eea;
+      box-shadow:0 0 0 3px rgba(102,126,234,0.1);
+    }
+    .form-select{
+      width:100%;
+      padding:14px 16px;
+      border:2px solid #e5e7eb;
+      border-radius:12px;
+      font-size:1rem;
+      transition:all 0.2s;
+      background:white;
+      cursor:pointer;
+    }
+    .form-select:focus{
+      outline:none;
+      border-color:#667eea;
+      box-shadow:0 0 0 3px rgba(102,126,234,0.1);
+    }
+    .computation-options{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:16px;
+      margin-top:8px;
+    }
+    .computation-option{
+      display:none;
+    }
+    .computation-option + label{
+      display:flex;
+      align-items:center;
+      padding:20px;
+      border:2px solid #e5e7eb;
+      border-radius:12px;
+      cursor:pointer;
+      transition:all 0.2s;
+      background:white;
+    }
+    .computation-option:checked + label{
+      border-color:var(--accent);
+      background:#fef2f2;
+    }
+    .computation-percent:checked + label{border-color:var(--percent);background:#f3f4f6}
+    .computation-fixed:checked + label{border-color:var(--fixed);background:#fffbeb}
+    .computation-label{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      width:100%;
+    }
+    .computation-icon{
+      width:32px;
+      height:32px;
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:white;
+      font-size:1rem;
+      font-weight:600;
+    }
+    .computation-percent .computation-icon{background:var(--percent)}
+    .computation-fixed .computation-icon{background:var(--fixed)}
+    .computation-info{
+      flex:1;
+    }
+    .computation-name{
+      font-weight:600;
+      color:#1f2937;
+      margin-bottom:2px;
+    }
+    .computation-desc{
+      font-size:0.85rem;
+      color:var(--muted);
+    }
+    .apply-options{
+      display:grid;
+      grid-template-columns:repeat(3, 1fr);
+      gap:12px;
+      margin-top:8px;
+    }
+    .apply-option{
+      display:none;
+    }
+    .apply-option + label{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      padding:16px 12px;
+      border:2px solid #e5e7eb;
+      border-radius:12px;
+      cursor:pointer;
+      transition:all 0.2s;
+      background:white;
+      text-align:center;
+    }
+    .apply-option:checked + label{
+      border-color:var(--accent);
+      background:#fef2f2;
+    }
+    .apply-both:checked + label{border-color:var(--both);background:#ecfdf5}
+    .apply-sales:checked + label{border-color:var(--sales);background:#eff6ff}
+    .apply-purchase:checked + label{border-color:var(--purchase);background:#fef2f2}
+    .apply-icon{
+      width:24px;
+      height:24px;
+      border-radius:6px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:white;
+      font-size:0.9rem;
+      font-weight:600;
+      margin-bottom:8px;
+    }
+    .apply-both .apply-icon{background:var(--both)}
+    .apply-sales .apply-icon{background:var(--sales)}
+    .apply-purchase .apply-icon{background:var(--purchase)}
+    .apply-name{
+      font-weight:600;
+      color:#1f2937;
+      font-size:0.9rem;
+    }
+    .value-input-group{
+      position:relative;
+    }
+    .value-prefix{
+      position:absolute;
+      left:16px;
+      top:50%;
+      transform:translateY(-50%);
+      color:var(--muted);
+      font-weight:600;
+      pointer-events:none;
+    }
+    .value-input{
+      padding-left:40px;
+    }
+    .checkbox-group{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      padding:16px 20px;
+      background:white;
+      border:2px solid #e5e7eb;
+      border-radius:12px;
+      transition:all 0.2s;
+    }
+    .checkbox-group:has(input:checked){
+      border-color:var(--success);
+      background:#ecfdf5;
+    }
+    .checkbox-input{
+      width:20px;
+      height:20px;
+      accent-color:var(--success);
+    }
+    .checkbox-label{
+      font-weight:600;
+      color:#374151;
+      cursor:pointer;
+    }
+    .form-actions{
+      display:flex;
+      gap:16px;
+      justify-content:flex-end;
+      margin-top:32px;
+    }
+    .btn{
+      padding:14px 28px;
+      border-radius:12px;
+      font-weight:600;
+      font-size:1rem;
+      text-decoration:none;
+      border:none;
+      cursor:pointer;
+      transition:all 0.2s;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    .btn-primary{
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color:white;
+    }
+    .btn-primary:hover{
+      transform:translateY(-2px);
+      box-shadow:0 8px 25px rgba(102,126,234,0.3);
+    }
+    .btn-secondary{
+      background:#f1f5f9;
+      color:var(--muted);
+    }
+    .btn-secondary:hover{
+      background:#e2e8f0;
+      transform:translateY(-1px);
+    }
+    @media (max-width:768px){
+      body{padding:20px}
+      .frame{padding:24px}
+      .main-title{font-size:2rem}
+      .form-section{padding:24px}
+      .computation-options{grid-template-columns:1fr}
+      .apply-options{grid-template-columns:1fr}
+      .form-actions{flex-direction:column}
+      .btn{justify-content:center}
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div class="nav-links">
+        <a href="{% url 'taxes_list' %}">← Tax Master</a>
+        <a href="{% url 'dashboard' %}">Dashboard</a>
+      </div>
     </div>
 
-    <div class="mb-3">
-      <label class="form-label">Computation</label>
-      <select name="computation" class="form-control">
-        <option value="percent" {% if tax.computation == 'percent' %}selected{% endif %}>Percentage</option>
-        <option value="fixed" {% if tax.computation == 'fixed' %}selected{% endif %}>Fixed Value</option>
-      </select>
-    </div>
+    <h1 class="main-title">Edit Tax Configuration</h1>
+    <p class="subtitle">Modify tax settings and calculation methods</p>
 
-    <div class="mb-3">
-      <label class="form-label">Apply On</label>
-      <select name="apply_on" class="form-control">
-        <option value="both" {% if tax.apply_on == 'both' %}selected{% endif %}>Both</option>
-        <option value="sales" {% if tax.apply_on == 'sales' %}selected{% endif %}>Sales</option>
-        <option value="purchase" {% if tax.apply_on == 'purchase' %}selected{% endif %}>Purchase</option>
-      </select>
-    </div>
+    {% if error %}
+      <div class="error-alert">{{ error }}</div>
+    {% endif %}
 
-    <div class="mb-3">
-      <label class="form-label">Value</label>
-      <input name="value" class="form-control" required value="{{ tax.value }}" />
-    </div>
+    <form method="post">{% csrf_token %}
+      <div class="form-section">
+        <div class="section-title">
+          <div class="section-icon">📊</div>
+          Tax Details
+        </div>
 
-    <div class="form-check mb-3">
-      <input type="checkbox" name="active" id="active" class="form-check-input" {% if tax.active %}checked{% endif %}>
-      <label for="active" class="form-check-label">Active</label>
-    </div>
+        <div class="form-group">
+          <label class="form-label">Tax Name *</label>
+          <input name="name" class="form-input" required value="{{ tax.name }}" placeholder="Enter tax name (e.g., GST 18%, VAT 5%)">
+        </div>
 
-    <div class="d-flex gap-2">
-      <button class="btn btn-primary" type="submit">Save</button>
-      <a class="btn btn-secondary" href="{% url 'taxes_list' %}">Back</a>
-    </div>
-  </form>
-</div>
+        <div class="form-group">
+          <label class="form-label">Computation Method *</label>
+          <div class="computation-options">
+            <input type="radio" name="computation" value="percent" id="comp_percent" class="computation-option computation-percent" {% if tax.computation == 'percent' %}checked{% endif %} required>
+            <label for="comp_percent" class="computation-percent">
+              <div class="computation-label">
+                <div class="computation-icon">%</div>
+                <div class="computation-info">
+                  <div class="computation-name">Percentage</div>
+                  <div class="computation-desc">Tax as % of amount</div>
+                </div>
+              </div>
+            </label>
+
+            <input type="radio" name="computation" value="fixed" id="comp_fixed" class="computation-option computation-fixed" {% if tax.computation == 'fixed' %}checked{% endif %}>
+            <label for="comp_fixed" class="computation-fixed">
+              <div class="computation-label">
+                <div class="computation-icon">₹</div>
+                <div class="computation-info">
+                  <div class="computation-name">Fixed Value</div>
+                  <div class="computation-desc">Fixed amount per unit</div>
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Apply On *</label>
+          <div class="apply-options">
+            <input type="radio" name="apply_on" value="both" id="apply_both" class="apply-option apply-both" {% if tax.apply_on == 'both' %}checked{% endif %} required>
+            <label for="apply_both" class="apply-both">
+              <div class="apply-icon">⚡</div>
+              <div class="apply-name">Both</div>
+            </label>
+
+            <input type="radio" name="apply_on" value="sales" id="apply_sales" class="apply-option apply-sales" {% if tax.apply_on == 'sales' %}checked{% endif %}>
+            <label for="apply_sales" class="apply-sales">
+              <div class="apply-icon">📈</div>
+              <div class="apply-name">Sales</div>
+            </label>
+
+            <input type="radio" name="apply_on" value="purchase" id="apply_purchase" class="apply-option apply-purchase" {% if tax.apply_on == 'purchase' %}checked{% endif %}>
+            <label for="apply_purchase" class="apply-purchase">
+              <div class="apply-icon">📉</div>
+              <div class="apply-name">Purchase</div>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Tax Value *</label>
+          <div class="value-input-group">
+            <span class="value-prefix" id="valuePrefix">%</span>
+            <input name="value" class="form-input value-input" required value="{{ tax.value }}" placeholder="Enter tax value" id="taxValue">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <div class="checkbox-group">
+            <input type="checkbox" name="active" id="active" class="checkbox-input" {% if tax.active %}checked{% endif %}>
+            <label for="active" class="checkbox-label">Active Tax Configuration</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <a class="btn btn-secondary" href="{% url 'taxes_list' %}">Cancel</a>
+        <button class="btn btn-primary" type="submit">Save Changes</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    // Update value prefix based on computation method
+    function updateValuePrefix() {
+      const percentRadio = document.getElementById('comp_percent');
+      const fixedRadio = document.getElementById('comp_fixed');
+      const prefix = document.getElementById('valuePrefix');
+      const valueInput = document.getElementById('taxValue');
+      
+      if (percentRadio.checked) {
+        prefix.textContent = '%';
+        valueInput.placeholder = 'Enter percentage (e.g., 18)';
+      } else if (fixedRadio.checked) {
+        prefix.textContent = '₹';
+        valueInput.placeholder = 'Enter fixed amount (e.g., 100)';
+      }
+    }
+    
+    // Add event listeners
+    document.getElementById('comp_percent').addEventListener('change', updateValuePrefix);
+    document.getElementById('comp_fixed').addEventListener('change', updateValuePrefix);
+    
+    // Initialize on page load
+    updateValuePrefix();
+  </script>
+</body>
+</html>
 {% endblock %}

@@ -1,33 +1,311 @@
-{% extends "base.html" %}
-{% block content %}
-<div class="container mt-4">
-  <h2>Sales Orders</h2>
-  <div class="mb-3">
-    <a class="btn btn-primary" href="{% url 'sales_order_create' %}">New Sales Order</a>
-  </div>
+{% load static %}
 
-  {% if orders %}
-  <table class="table table-dark table-sm">
-    <thead>
-      <tr><th>SO</th><th>Date</th><th>Customer</th><th>Ref</th><th>Status</th><th>Actions</th></tr>
-    </thead>
-    <tbody>
-      {% for so in orders %}
-      <tr>
-        <td>SO/{{ so.pk }}</td>
-        <td>{{ so.date }}</td>
-        <td>{{ so.customer }}</td>
-        <td>{{ so.reference }}</td>
-        <td>{{ so.status }}</td>
-        <td>
-          <a class="btn btn-sm btn-secondary" href="{% url 'sales_order_detail' so.pk %}">View</a>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-    <p>No sales orders yet.</p>
-  {% endif %}
-</div>
+{% block content %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sales Orders</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --card:#ffffff;
+      --accent:#ef4444;
+      --circle:#f05252;
+      --muted:#475569;
+      --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+      --table-border: #eee;
+      --success:#10b981;
+      --warning:#f59e0b;
+      --info:#3b82f6;
+      --draft:#94a3b8;
+      --confirmed:#10b981;
+      --cancelled:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:40px;
+    }
+    .frame{
+      width:95%;
+      max-width:1200px;
+      background:var(--card);
+      border-radius:24px;
+      padding:34px 48px;
+      box-shadow: var(--soft-shadow);
+      position:relative;
+      overflow:hidden;
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:32px;
+      padding-bottom:20px;
+      border-bottom:2px solid #f1f5f9;
+    }
+    .nav-links{
+      display:flex;
+      gap:24px;
+    }
+    .nav-links a{
+      color:var(--muted);
+      text-decoration:none;
+      font-weight:500;
+      padding:8px 16px;
+      border-radius:8px;
+      transition:all 0.2s;
+    }
+    .nav-links a:hover{
+      background:#f8fafc;
+      color:var(--accent);
+    }
+    .action-btn{
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color:white;
+      padding:12px 24px;
+      border-radius:12px;
+      text-decoration:none;
+      font-weight:600;
+      transition:all 0.2s;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    .action-btn:hover{
+      transform:translateY(-2px);
+      box-shadow:0 8px 25px rgba(102,126,234,0.3);
+      color:white;
+    }
+    .main-title{
+      font-size:2.5rem;
+      font-weight:800;
+      color:#1e293b;
+      margin:0 0 8px 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle{
+      color:var(--muted);
+      font-size:1.1rem;
+      margin:0 0 32px 0;
+    }
+    .stats-row{
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));
+      gap:20px;
+      margin-bottom:32px;
+    }
+    .stat-card{
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color:white;
+      padding:20px;
+      border-radius:16px;
+      text-align:center;
+    }
+    .stat-number{
+      font-size:2rem;
+      font-weight:700;
+      margin-bottom:4px;
+    }
+    .stat-label{
+      font-size:0.9rem;
+      opacity:0.9;
+    }
+    .main-table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0 8px;
+      margin-top:20px;
+    }
+    .main-table thead th{
+      background:#f8fafc;
+      color:var(--muted);
+      font-weight:600;
+      padding:16px 20px;
+      text-align:left;
+      border:none;
+      font-size:0.9rem;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    .main-table thead th:first-child{border-radius:12px 0 0 12px}
+    .main-table thead th:last-child{border-radius:0 12px 12px 0}
+    .main-table tbody tr{
+      background:white;
+      box-shadow:0 2px 8px rgba(0,0,0,0.04);
+      transition:all 0.2s;
+    }
+    .main-table tbody tr:hover{
+      transform:translateY(-2px);
+      box-shadow:0 8px 25px rgba(0,0,0,0.1);
+    }
+    .main-table tbody td{
+      padding:20px;
+      border:none;
+      vertical-align:middle;
+    }
+    .main-table tbody td:first-child{border-radius:12px 0 0 12px}
+    .main-table tbody td:last-child{border-radius:0 12px 12px 0}
+    .so-number{
+      font-weight:700;
+      color:#1e293b;
+      font-family:monospace;
+      background:#f1f5f9;
+      padding:4px 8px;
+      border-radius:6px;
+      font-size:0.9rem;
+    }
+    .customer-name{
+      font-weight:600;
+      color:#1e293b;
+      font-size:1.1rem;
+    }
+    .so-date{
+      color:var(--muted);
+      font-size:0.95rem;
+    }
+    .so-reference{
+      color:var(--muted);
+      font-size:0.95rem;
+      font-style:italic;
+    }
+    .status-badge{
+      padding:6px 12px;
+      border-radius:20px;
+      font-size:0.85rem;
+      font-weight:600;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    .status-draft{background:#f1f5f9;color:var(--draft)}
+    .status-confirmed{background:#d1fae5;color:var(--confirmed)}
+    .status-cancelled{background:#fee2e2;color:var(--cancelled)}
+    .view-btn{
+      background:#e0f2fe;
+      color:#0369a1;
+      padding:8px 16px;
+      border-radius:8px;
+      text-decoration:none;
+      font-weight:500;
+      font-size:0.9rem;
+      transition:all 0.2s;
+    }
+    .view-btn:hover{
+      background:#bae6fd;
+      transform:translateY(-1px);
+      color:#0369a1;
+    }
+    .empty-state{
+      text-align:center;
+      padding:60px 20px;
+      color:var(--muted);
+    }
+    .empty-icon{
+      font-size:4rem;
+      margin-bottom:20px;
+      opacity:0.3;
+    }
+    @media (max-width:768px){
+      body{padding:20px}
+      .frame{padding:24px}
+      .main-title{font-size:2rem}
+      .stats-row{grid-template-columns:1fr}
+      .main-table{font-size:0.9rem}
+      .main-table tbody td{padding:16px 12px}
+      .topbar{flex-direction:column;gap:16px;align-items:stretch}
+      .nav-links{justify-content:center}
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div class="nav-links">
+        <a href="{% url 'dashboard' %}">← Dashboard</a>
+        <a href="{% url 'contacts_list' %}">Contacts</a>
+        <a href="{% url 'products_list' %}">Products</a>
+      </div>
+      <a class="action-btn" href="{% url 'sales_order_create' %}">
+        <span>📋</span> New Sales Order
+      </a>
+    </div>
+
+    <h1 class="main-title">Sales Orders</h1>
+    <p class="subtitle">Manage and track all your sales orders and customer transactions</p>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-number">{{ orders|length }}</div>
+        <div class="stat-label">Total Orders</div>
+      </div>
+     
+      <div class="stat-card">
+        <div class="stat-number">{{ orders|length|add:0 }}</div>
+        <div class="stat-label">This Month</div>
+      </div>
+    </div>
+
+    {% if orders %}
+      <table class="main-table">
+        <thead>
+          <tr>
+            <th>SO</th>
+            <th>Date</th>
+            <th>Customer</th>
+            <th>Ref</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for so in orders %}
+          <tr>
+            <td>
+              <span class="so-number">SO/{{ so.pk }}</span>
+            </td>
+            <td>
+              <div class="so-date">{{ so.date|date:"M d, Y" }}</div>
+            </td>
+            <td>
+              <div class="customer-name">{{ so.customer }}</div>
+            </td>
+            <td>
+              <div class="so-reference">{{ so.reference|default:"No reference" }}</div>
+            </td>
+            <td>
+              <span class="status-badge status-{{ so.status|lower }}">
+                {{ so.status|capfirst }}
+              </span>
+            </td>
+            <td>
+              <a class="view-btn" href="{% url 'sales_order_detail' so.pk %}">View Details</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <h3>No Sales Orders Found</h3>
+        <p>You haven't created any sales orders yet. Click "New Sales Order" to get started.</p>
+        <a class="action-btn" href="{% url 'sales_order_create' %}" style="margin-top:20px">
+          <span>📋</span> Create Your First Order
+        </a>
+      </div>
+    {% endif %}
+  </div>
+</body>
+</html>
 {% endblock %}

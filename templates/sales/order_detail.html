@@ -1,113 +1,495 @@
-{% extends "base.html" %}
+{% load static %}
+
 {% block content %}
-<div class="container mt-4">
-  <div class="d-flex justify-content-between align-items-center">
-    <h3>Sales Order SO/{{ so.pk }}</h3>
-    <div>
-      {% if so.status != 'confirmed' %}
-        <a class="btn btn-success" href="{% url 'sales_order_confirm' so.pk %}">Confirm</a>
-      {% else %}
-        <span class="badge bg-success">Confirmed</span>
-      {% endif %}
-      <a class="btn btn-secondary" href="{% url 'sales_order_list' %}">Back</a>
-      <a href="{% url 'create_invoice_from_so' so.pk %}" class="btn btn-primary">
-        Create Invoice
-      </a>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sales Order Details</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --card:#ffffff;
+      --accent:#ef4444;
+      --circle:#f05252;
+      --muted:#475569;
+      --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+      --success:#10b981;
+      --warning:#f59e0b;
+      --info:#3b82f6;
+      --confirmed:#10b981;
+      --draft:#94a3b8;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:40px;
+    }
+    .frame{
+      width:95%;
+      max-width:1200px;
+      background:var(--card);
+      border-radius:24px;
+      padding:34px 48px;
+      box-shadow: var(--soft-shadow);
+      position:relative;
+      overflow:hidden;
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:32px;
+      padding-bottom:20px;
+      border-bottom:2px solid #f1f5f9;
+    }
+    .nav-links{
+      display:flex;
+      gap:24px;
+    }
+    .nav-links a{
+      color:var(--muted);
+      text-decoration:none;
+      font-weight:500;
+      padding:8px 16px;
+      border-radius:8px;
+      transition:all 0.2s;
+    }
+    .nav-links a:hover{
+      background:#f8fafc;
+      color:var(--accent);
+    }
+    .action-buttons{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .main-title{
+      font-size:2.5rem;
+      font-weight:800;
+      color:#1e293b;
+      margin:0 0 8px 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle{
+      color:var(--muted);
+      font-size:1.1rem;
+      margin:0 0 32px 0;
+    }
+    .so-info{
+      background:#f8fafc;
+      padding:24px;
+      border-radius:16px;
+      margin-bottom:24px;
+    }
+    .so-header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom:20px;
+    }
+    .so-details{
+      display:flex;
+      align-items:center;
+      gap:16px;
+    }
+    .so-icon{
+      width:48px;
+      height:48px;
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius:12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:white;
+      font-size:1.5rem;
+    }
+    .so-number{
+      font-size:1.4rem;
+      font-weight:700;
+      color:#1e293b;
+      margin:0;
+    }
+    .info-grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));
+      gap:16px;
+    }
+    .info-item{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .info-label{
+      font-size:0.85rem;
+      color:var(--muted);
+      font-weight:500;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    .info-value{
+      font-size:1rem;
+      font-weight:600;
+      color:#1e293b;
+    }
+    .status-badge{
+      padding:8px 16px;
+      border-radius:20px;
+      font-size:0.85rem;
+      font-weight:600;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    .status-confirmed{
+      background:#d1fae5;
+      color:var(--confirmed);
+    }
+    .status-draft{
+      background:#f1f5f9;
+      color:var(--draft);
+    }
+    .btn{
+      padding:10px 20px;
+      border-radius:8px;
+      font-weight:600;
+      font-size:0.9rem;
+      text-decoration:none;
+      border:none;
+      cursor:pointer;
+      transition:all 0.2s;
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+    }
+    .btn-success{
+      background:var(--success);
+      color:white;
+    }
+    .btn-success:hover{
+      background:#059669;
+      transform:translateY(-1px);
+      color:white;
+    }
+    .btn-primary{
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color:white;
+    }
+    .btn-primary:hover{
+      transform:translateY(-1px);
+      box-shadow:0 4px 15px rgba(102,126,234,0.3);
+      color:white;
+    }
+    .btn-secondary{
+      background:#f1f5f9;
+      color:var(--muted);
+    }
+    .btn-secondary:hover{
+      background:#e2e8f0;
+      transform:translateY(-1px);
+      color:var(--muted);
+    }
+    .lines-section{
+      background:white;
+      border-radius:16px;
+      padding:24px;
+      margin-bottom:24px;
+      border:2px solid #f1f5f9;
+    }
+    .section-title{
+      font-size:1.3rem;
+      font-weight:700;
+      color:#1e293b;
+      margin:0 0 20px 0;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .section-icon{
+      width:32px;
+      height:32px;
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:white;
+      font-size:1.2rem;
+    }
+    .main-table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0 8px;
+      margin-top:20px;
+    }
+    .main-table thead th{
+      background:#f8fafc;
+      color:var(--muted);
+      font-weight:600;
+      padding:12px 16px;
+      text-align:left;
+      border:none;
+      font-size:0.85rem;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    .main-table thead th:first-child{border-radius:12px 0 0 12px}
+    .main-table thead th:last-child{border-radius:0 12px 12px 0}
+    .main-table tbody tr{
+      background:white;
+      box-shadow:0 2px 8px rgba(0,0,0,0.04);
+      transition:all 0.2s;
+    }
+    .main-table tbody tr:hover{
+      transform:translateY(-1px);
+      box-shadow:0 4px 15px rgba(0,0,0,0.1);
+    }
+    .main-table tbody td{
+      padding:16px;
+      border:none;
+      vertical-align:middle;
+    }
+    .main-table tbody td:first-child{border-radius:12px 0 0 12px}
+    .main-table tbody td:last-child{border-radius:0 12px 12px 0}
+    .main-table tfoot th{
+      background:#f8fafc;
+      padding:12px 16px;
+      border:none;
+      font-weight:700;
+      color:#1e293b;
+    }
+    .main-table tfoot th:first-child{border-radius:12px 0 0 12px}
+    .main-table tfoot th:last-child{border-radius:0 12px 12px 0}
+    .empty-row{
+      text-align:center;
+      color:var(--muted);
+      font-style:italic;
+      padding:40px 16px;
+    }
+    .add-line-section{
+      background:#f8fafc;
+      padding:24px;
+      border-radius:16px;
+      margin-top:24px;
+    }
+    .form-row{
+      display:grid;
+      grid-template-columns:2fr 1fr 1fr 1fr auto;
+      gap:16px;
+      align-items:end;
+    }
+    .form-group{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .form-label{
+      font-weight:600;
+      color:#374151;
+      font-size:0.9rem;
+    }
+    .form-input, .form-select{
+      padding:12px 14px;
+      border:2px solid #e5e7eb;
+      border-radius:8px;
+      font-size:0.95rem;
+      transition:all 0.2s;
+      background:white;
+    }
+    .form-input:focus, .form-select:focus{
+      outline:none;
+      border-color:#667eea;
+      box-shadow:0 0 0 3px rgba(102,126,234,0.1);
+    }
+    .btn-add{
+      background:var(--success);
+      color:white;
+      padding:12px 20px;
+      border-radius:8px;
+      border:none;
+      font-weight:600;
+      cursor:pointer;
+      transition:all 0.2s;
+    }
+    .btn-add:hover{
+      background:#059669;
+      transform:translateY(-1px);
+    }
+    @media (max-width:768px){
+      body{padding:20px}
+      .frame{padding:24px}
+      .main-title{font-size:2rem}
+      .so-header{flex-direction:column;gap:16px;align-items:stretch}
+      .action-buttons{justify-content:center}
+      .info-grid{grid-template-columns:1fr}
+      .form-row{grid-template-columns:1fr;gap:12px}
+      .main-table{font-size:0.85rem}
+      .main-table tbody td, .main-table thead th, .main-table tfoot th{padding:12px 8px}
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div class="nav-links">
+        <a href="{% url 'sales_order_list' %}">← Sales Orders</a>
+        <a href="{% url 'dashboard' %}">Dashboard</a>
+      </div>
+      <div class="action-buttons">
+        {% if so.status != 'confirmed' %}
+          <a class="btn btn-success" href="{% url 'sales_order_confirm' so.pk %}">
+            <span>✓</span> Confirm
+          </a>
+        {% else %}
+          <span class="status-badge status-confirmed">Confirmed</span>
+        {% endif %}
+        <a class="btn btn-secondary" href="{% url 'sales_order_list' %}">Back</a>
+        <a href="{% url 'create_invoice_from_so' so.pk %}" class="btn btn-primary">
+          <span>📄</span> Create Invoice
+        </a>
+      </div>
+    </div>
+
+    <h1 class="main-title">Sales Order SO/{{ so.pk }}</h1>
+    <p class="subtitle">Manage sales order details and line items</p>
+
+    <div class="so-info">
+      <div class="so-header">
+        <div class="so-details">
+          <div class="so-icon">📋</div>
+          <h2 class="so-number">Sales Order #{{ so.pk }}</h2>
+        </div>
+      </div>
       
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Customer</div>
+          <div class="info-value">{{ so.customer }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Reference</div>
+          <div class="info-value">{{ so.reference|default:"No reference" }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Date</div>
+          <div class="info-value">{{ so.date|date:"M d, Y" }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="lines-section">
+      <div class="section-title">
+        <div class="section-icon">📦</div>
+        Order Lines
+      </div>
+      
+      <table class="main-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Product</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Tax %</th>
+            <th>Tax Amt</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in so.lines.all %}
+          <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ line.product }}</td>
+            <td>{{ line.qty }}</td>
+            <td>₹{{ line.unit_price|floatformat:2 }}</td>
+            <td>{{ line.tax_percent }}%</td>
+            <td>₹{{ line.tax_amount|floatformat:2 }}</td>
+            <td>₹{{ line.line_total|floatformat:2 }}</td>
+          </tr>
+          {% endfor %}
+          {% if not so.lines.exists %}
+          <tr>
+            <td colspan="7" class="empty-row">No lines yet. Add below.</td>
+          </tr>
+          {% endif %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th colspan="6" style="text-align:right">Net</th>
+            <th>₹{{ total_net|floatformat:2 }}</th>
+          </tr>
+          <tr>
+            <th colspan="6" style="text-align:right">Tax</th>
+            <th>₹{{ total_tax|floatformat:2 }}</th>
+          </tr>
+          <tr>
+            <th colspan="6" style="text-align:right">Total</th>
+            <th>₹{{ total|floatformat:2 }}</th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="add-line-section">
+      <div class="section-title">
+        <div class="section-icon">➕</div>
+        Add Line Item
+      </div>
+      
+      <form method="post" action="{% url 'sales_order_add_line' so.pk %}">
+        {% csrf_token %}
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Product</label>
+            <select name="product" class="form-select">
+              <option value="">-- not linked --</option>
+              {% for p in products %}
+                <option value="{{ p.pk }}" data-price="{{ p.sale_price|default:0 }}">{{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Qty</label>
+            <input name="qty" type="number" step="0.01" value="1" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Unit price</label>
+            <input name="unit_price" type="number" step="0.01" value="0" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tax %</label>
+            <input name="tax_percent" type="number" step="0.01" value="0" class="form-input" />
+          </div>
+          <button class="btn-add">Add</button>
+        </div>
+      </form>
     </div>
   </div>
 
-  <p><strong>Customer:</strong> {{ so.customer }}</p>
-  <p><strong>Reference:</strong> {{ so.reference }}</p>
-  <p><strong>Date:</strong> {{ so.date }}</p>
-
-  <hr />
-
-  <h5>Lines</h5>
-  <table class="table table-dark table-sm">
-    <thead>
-      <tr><th>#</th><th>Product</th><th>Qty</th><th>Unit Price</th><th>Tax %</th><th>Tax Amt</th><th>Total</th></tr>
-    </thead>
-    <tbody>
-      {% for line in so.lines.all %}
-      <tr>
-        <td>{{ forloop.counter }}</td>
-        <td>{{ line.product }}</td>
-        <td>{{ line.qty }}</td>
-        <td>{{ line.unit_price }}</td>
-        <td>{{ line.tax_percent }}</td>
-        <td>{{ line.tax_amount }}</td>
-        <td>{{ line.line_total }}</td>
-      </tr>
-      {% endfor %}
-      {% if not so.lines.exists %}
-      <tr><td colspan="7"><em>No lines yet. Add below.</em></td></tr>
-      {% endif %}
-    </tbody>
-    <tfoot>
-      <tr>
-        <th colspan="6" class="text-end">Net</th>
-        <th>{{ total_net|floatformat:2 }}</th>
-      </tr>
-      <tr>
-        <th colspan="6" class="text-end">Tax</th>
-        <th>{{ total_tax|floatformat:2 }}</th>
-      </tr>
-      <tr>
-        <th colspan="6" class="text-end">Total</th>
-        <th>{{ total|floatformat:2 }}</th>
-      </tr>
-    </tfoot>
-  </table>
-
-  <hr />
-
-  <h5>Add Line</h5>
-  <form method="post" action="{% url 'sales_order_add_line' so.pk %}">
-    {% csrf_token %}
-    <div class="row g-2">
-      <div class="col-md-5">
-        <label>Product</label>
-        <select name="product" class="form-select">
-          <option value="">-- not linked --</option>
-          {% for p in products %}
-            <option value="{{ p.pk }}" data-price="{{ p.sale_price|default:0 }}">{{ p.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2">
-        <label>Qty</label>
-        <input name="qty" type="number" step="0.01" value="1" class="form-control" />
-      </div>
-      <div class="col-md-2">
-        <label>Unit price</label>
-        <input name="unit_price" type="number" step="0.01" value="0" class="form-control" />
-      </div>
-      <div class="col-md-2">
-        <label>Tax %</label>
-        <input name="tax_percent" type="number" step="0.01" value="0" class="form-control" />
-      </div>
-      <div class="col-md-1 d-flex align-items-end">
-        <button class="btn btn-primary w-100">Add</button>
-      </div>
-    </div>
-  </form>
-
-</div>
-
-<script>
-/* small UX: when product selected, auto-copy product price into unit_price if available */
-document.addEventListener('DOMContentLoaded', function(){
-  const prodSel = document.querySelector('select[name="product"]');
-  const priceInput = document.querySelector('input[name="unit_price"]');
-  if(prodSel && priceInput){
-    prodSel.addEventListener('change', function(e){
-      const opt = e.target.selectedOptions[0];
-      if(opt && opt.dataset.price){
-        priceInput.value = opt.dataset.price;
-      }
-    });
-  }
-});
-</script>
+  <script>
+  /* small UX: when product selected, auto-copy product price into unit_price if available */
+  document.addEventListener('DOMContentLoaded', function(){
+    const prodSel = document.querySelector('select[name="product"]');
+    const priceInput = document.querySelector('input[name="unit_price"]');
+    if(prodSel && priceInput){
+      prodSel.addEventListener('change', function(e){
+        const opt = e.target.selectedOptions[0];
+        if(opt && opt.dataset.price){
+          priceInput.value = opt.dataset.price;
+        }
+      });
+    }
+  });
+  </script>
+</body>
+</html>
 {% endblock %}
