@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card p-4" style="max-width:600px;">
+  <h4>Delete Contact</h4>
+  <p>Are you sure you want to delete <strong>{{ contact.name }}</strong>?</p>
+  <form method="post">{% csrf_token %}
+    <button class="btn btn-danger">Yes, delete</button>
+    <a class="btn btn-secondary" href="{% url 'contacts_detail' contact.id %}">Cancel</a>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card p-3">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h4>Product Master</h4>
+    <a href="{% url 'products_add' %}" class="btn btn-success">New</a>
+  </div>
+
+  <table class="table table-sm table-dark">
+    <thead>
+      <tr>
+        <th style="width:60px">Image</th>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Sales Price</th>
+        <th>Purchase Price</th>
+        <th>HSN</th>
+        <th style="width:90px"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in products %}
+      <tr>
+        <td class="align-middle">
+          {% if p.image %}
+            <img src="{{ p.image.url }}" alt="img" style="height:40px;width:40px;border-radius:6px;">
+          {% else %}
+            <div style="height:40px;width:40px;background:#222;border-radius:6px"></div>
+          {% endif %}
+        </td>
+        <td class="align-middle">{{ p.name }}</td>
+        <td class="align-middle">{{ p.product_type|title }}</td>
+        <td class="align-middle">{{ p.sales_price }}</td>
+        <td class="align-middle">{{ p.purchase_price }}</td>
+        <td class="align-middle">{{ p.hsn|default:"-" }}</td>
+        <td class="align-middle text-end">
+          <a class="btn btn-sm btn-outline-light" href="{% url 'products_detail' p.id %}">Open</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7">No products yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card p-3" style="max-width:800px;">
+  <div class="d-flex justify-content-between">
+    <h4>{{ product.name }}</h4>
+    <div>
+      {% if user.role == 'admin' %}
+        <a href="{% url 'products_edit' product.id %}" class="btn btn-sm btn-primary">Edit</a>
+        <a href="{% url 'products_delete' product.id %}" class="btn btn-sm btn-danger">Delete</a>
+      {% endif %}
+      <a href="{% url 'products_list' %}" class="btn btn-sm btn-secondary">Back</a>
+    </div>
+  </div>
+
+  <div class="d-flex gap-3 mt-3">
+    {% comment %} <div>
+      {% if product.image %}
+        <img src="{{ product.image.url }}" alt="img" style="height:140px;width:140px;border-radius:8px;">
+      {% endif %}
+    </div> {% endcomment %}
+    <div class="d-flex gap-3 mt-3">
+      <div>
+        {% if product.image %}
+          <img src="{{ product.image.url }}" alt="img" style="height:140px;width:140px;border-radius:8px;">
+        {% endif %}
+      </div>
+      <div>
+        <p><strong>Type:</strong> {{ product.product_type|title }}</p>
+        <p><strong>Category:</strong> {{ product.category|default:"-" }}</p>
+        <p><strong>Sales Price:</strong> {{ product.sales_price }} &nbsp; <small>Tax {{ product.sale_tax_percent }}%</small></p>
+        <p><strong>Purchase Price:</strong> {{ product.purchase_price }} &nbsp; <small>Tax {{ product.purchase_tax_percent }}%</small></p>
+        <p><strong>HSN/SAC:</strong> {{ product.hsn|default:"-" }}</p>
+    
+        {% if product.created_by %}
+          <p><strong>Created by:</strong> {{ product.created_by.full_name }}</p>
+        {% else %}
+          <p><strong>Created by:</strong> -</p>
+        {% endif %}
+    
+        <p><strong>Created at:</strong> {{ product.created_at }}</p>
+      </div>
+    </div>
+    
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card p-4">
+  <h3>{{ user.full_name|default:user.username }}</h3>
+
+  <p class="muted">Role: {{ user.role }}</p>
+  <div class="mt-3">
+    <a href="{% url 'contacts_list' %}" class="btn btn-outline-light me-2">Contacts</a>
+    <a href="{% url 'products_list' %}" class="btn btn-outline-light">Products</a>
+  </div>
+</div>
+{% endblock %}

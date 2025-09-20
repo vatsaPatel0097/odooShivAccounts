@@ -1,0 +1,149 @@
+{% load static %}
+{% block content %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shiv Accounts Cloud Registration</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; overflow: hidden; }
+    .animated-gradient {
+      background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+      background-size: 400% 400%;
+      animation: gradient-shift 15s ease infinite;
+      position: fixed; inset: 0; z-index: -1;
+    }
+    @keyframes gradient-shift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .animated-blob {
+      position: absolute; width: 50vw; height: 50vw;
+      background: linear-gradient(45deg, #f0abfc, #a5b4fc, #c084fc);
+      border-radius: 50%; opacity: 0.6; filter: blur(80px);
+      animation: blob-move 25s infinite ease-in-out, blob-pulse 10s infinite;
+      top: -10vw; left: -10vw; z-index: -1;
+    }
+    @keyframes blob-move {
+      0% { transform: translate(0,0); }
+      25% { transform: translate(10vw,15vw); }
+      50% { transform: translate(20vw,0); }
+      75% { transform: translate(15vw,10vw); }
+      100% { transform: translate(0,0); }
+    }
+    @keyframes blob-pulse {
+      0%,100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+  </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4 relative">
+
+  <div class="animated-gradient"></div>
+  <div class="animated-blob"></div>
+
+  <div id="registration-card"
+       class="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 border border-gray-100">
+
+    <!-- Header -->
+    <div class="flex flex-col items-center mb-6">
+      <svg class="w-16 h-16 text-pink-400 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M12 5.5a4 4 0 0 0-4 4c0 1.95 1.5 3.5 3.5 3.5h.5a4 4 0 0 0 4-4c0-1.95-1.5-3.5-3.5-3.5z"/>
+        <path d="M15.5 10a4 4 0 0 0 4-4c0-1.95-1.5-3.5-3.5-3.5h-.5a4 4 0 0 0-4 4c0 1.95 1.5 3.5 3.5 3.5z"/>
+      </svg>
+      <h1 class="text-3xl font-bold text-gray-800">Shiv Accounts Cloud</h1>
+      <p class="mt-2 text-gray-500">Create a new account</p>
+    </div>
+
+    <!-- Django Messages -->
+    {% if error %}
+      <div class="mb-4 p-3 rounded-lg bg-red-100 text-red-700 text-center font-medium">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+      <div class="mb-4 p-3 rounded-lg bg-green-100 text-green-700 text-center font-medium">{{ success }}</div>
+    {% endif %}
+
+    <!-- Form -->
+    <form method="post" class="space-y-5">
+      {% csrf_token %}
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Full Name</label>
+        <input name="full_name" type="text"
+               value="{{ request.POST.full_name|default:'' }}"
+               class="mt-1 block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-pink-400 sm:text-sm">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Role</label>
+        <select name="role"
+                class="mt-1 block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-pink-400 sm:text-sm">
+          <option value="Admin" {% if request.POST.role == "Admin" %}selected{% endif %}>Admin</option>
+          <option value="Invoicing User" {% if request.POST.role == "Invoicing User" %}selected{% endif %}>Invoicing User</option>
+          <option value="Contact" {% if request.POST.role == "Contact" %}selected{% endif %}>Contact</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Login ID (6–12 chars)</label>
+        <input name="username" type="text"
+               value="{{ request.POST.username|default:'' }}"
+               class="mt-1 block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-pink-400 sm:text-sm">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Email Address</label>
+        <input name="email" type="email"
+               value="{{ request.POST.email|default:'' }}"
+               class="mt-1 block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-pink-400 sm:text-sm">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Password</label>
+        <input name="password" type="password"
+               class="mt-1 block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-pink-400 sm:text-sm">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Re-enter Password</label>
+        <input name="password2" type="password"
+               class="mt-1 block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-pink-400 sm:text-sm">
+      </div>
+
+      <div class="flex space-x-4">
+        <button type="submit"
+                class="w-1/2 flex justify-center py-3 px-4 rounded-lg text-sm font-semibold text-white bg-pink-500 hover:bg-pink-600">
+          Create
+        </button>
+        <a href="{% url 'dashboard' %}"
+           class="w-1/2 flex justify-center py-3 px-4 rounded-lg text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200">
+          Cancel
+        </a>
+      </div>
+    </form>
+
+    <!-- Rules -->
+    <p class="mt-6 text-xs text-gray-500">
+      Rules:  
+      <br>• Login ID must be unique (6–12 characters).  
+      <br>• Email should be unique.  
+      <br>• Password ≥8 chars, must include uppercase, lowercase, digit, and special char.  
+    </p>
+  </div>
+
+  <script>
+    // Parallax
+    const card = document.getElementById('registration-card');
+    document.body.addEventListener('mousemove', e => {
+      const x = (e.clientX / window.innerWidth - 0.5) * -10;
+      const y = (e.clientY / window.innerHeight - 0.5) * -10;
+      card.style.transform = translate(${x}px, ${y}px);
+    });
+  </script>
+</body>
+</html>
+{% endblock %}

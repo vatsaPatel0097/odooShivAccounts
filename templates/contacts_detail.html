@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card p-3" style="max-width:800px;">
+  <div class="d-flex justify-content-between">
+    <h4>{{ contact.name }}</h4>
+    <div>
+      {% if user.role == 'admin' %}
+        <a href="{% url 'contacts_edit' contact.id %}" class="btn btn-sm btn-primary">Edit</a>
+        <a href="{% url 'contacts_delete' contact.id %}" class="btn btn-sm btn-danger">Delete</a>
+      {% endif %}
+      <a href="{% url 'contacts_list' %}" class="btn btn-sm btn-secondary">Back</a>
+    </div>
+  </div>
+
+  <div class="d-flex gap-3 mt-3">
+    <div>
+      {% if contact.profile_image %}
+        <img src="{{ contact.profile_image.url }}" alt="Photo" style="height:120px;width:120px;border-radius:8px;">
+      {% else %}
+        <div style="height:120px;width:120px;background:#222;border-radius:8px;"></div>
+      {% endif %}
+    </div>
+    <div>
+      <p><strong>Type:</strong> {{ contact.contact_type|title }}</p>
+      <p><strong>Email:</strong> {{ contact.email|default:"-" }}</p>
+      <p><strong>Phone:</strong> {{ contact.mobile|default:"-" }}</p>
+      <p><strong>City / State / Pincode:</strong>
+        {{ contact.city|default:"-" }} / {{ contact.state|default:"-" }} / {{ contact.pincode|default:"-" }}
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

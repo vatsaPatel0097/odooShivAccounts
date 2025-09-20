@@ -1,0 +1,47 @@
+[
+    {
+      "hsn": "9401",
+      "description": "Seats (e.g., office chairs, bar stools)",
+      "products": [
+        {
+          "name": "Office Chair - Standard",
+          "sales_price": "4500.00",
+          "sale_tax_percent": "5.00",
+          "purchase_price": "3000.00",
+          "purchase_tax_percent": "5.00",
+          "category": "Office Furniture",
+          "image_url": "/media/products/office_chair.jpg"
+        },
+        {
+          "name": "Office Chair - Executive",
+          "sales_price": "7500.00",
+          "sale_tax_percent": "12.00",
+          "purchase_price": "5200.00",
+          "purchase_tax_percent": "12.00",
+          "category": "Office Furniture",
+          "image_url": "/media/products/executive_chair.jpg"
+        }
+      ]
+    },
+    {
+      "hsn": "9403",
+      "description": "Other furniture and parts",
+      "products": [
+        {
+          "name": "Wooden Table",
+          "sales_price": "8500.00",
+          "sale_tax_percent": "5.00",
+          "purchase_price": "5600.00",
+          "purchase_tax_percent": "5.00",
+          "category": "Tables",
+          "image_url": ""
+        }
+      ]
+    },
+    {
+      "hsn": "9404",
+      "description": "Mattresses; cushions; bedding",
+      "products": []
+    }
+  ]
+  

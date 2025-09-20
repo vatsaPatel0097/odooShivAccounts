@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card p-4">
+  <h4>Account created</h4>
+  <p>Account <strong>{{ username }}</strong> created as Invoicing User. Please <a href="{% url 'login' %}">login</a>.</p>
+</div>
+{% endblock %}
