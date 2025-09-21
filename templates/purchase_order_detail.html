@@ -465,36 +465,21 @@
             <div class="total-item">
               <div class="total-label">Subtotal</div>
               <div class="total-amount subtotal">
-                ₹{% with subtotal=0 %}
-                  {% for L in po.lines.all %}
-                    {% with subtotal=subtotal|add:L.unit_price %}{% endwith %}
-                  {% endfor %}
-                  {{ subtotal|floatformat:2 }}
-                {% endwith %}
+                ₹{{ po.untaxed_total|floatformat:2 }}
               </div>
             </div>
             
             <div class="total-item">
               <div class="total-label">Tax Total</div>
               <div class="total-amount tax-total">
-                ₹{% with tax_total=0 %}
-                  {% for L in po.lines.all %}
-                    {% with tax_total=tax_total|add:L.tax_amount %}{% endwith %}
-                  {% endfor %}
-                  {{ tax_total|floatformat:2 }}
-                {% endwith %}
+                ₹{{ po.tax_total|floatformat:2 }}
               </div>
             </div>
             
             <div class="total-item">
               <div class="total-label">Grand Total</div>
               <div class="total-amount grand-total">
-                ₹{% with grand_total=0 %}
-                  {% for L in po.lines.all %}
-                    {% with grand_total=grand_total|add:L.line_total %}{% endwith %}
-                  {% endfor %}
-                  {{ grand_total|floatformat:2 }}
-                {% endwith %}
+                ₹{{ po.grand_total|floatformat:2 }}
               </div>
             </div>
           </div>

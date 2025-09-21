@@ -1,26 +1,291 @@
 {% extends "base.html" %}
+{% load static %}
+
 {% block content %}
-<div class="card p-3">
-  <h4>Partner Ledger - {{ partner.name }}</h4>
-  <table class="table table-dark table-sm">
-    <thead>
-      <tr>
-        <th>Date</th><th>Ref</th><th>Account</th>
-        <th>Debit</th><th>Credit</th><th>Balance</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in rows %}
-      <tr>
-        <td>{{ row.date }}</td>
-        <td>{{ row.ref }}</td>
-        <td>{{ row.account }}</td>
-        <td>{{ row.debit }}</td>
-        <td>{{ row.credit }}</td>
-        <td>{{ row.balance }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Partner Ledger Report</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --card:#ffffff;
+      --accent:#ef4444;
+      --circle:#f05252;
+      --muted:#475569;
+      --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+      --success:#10b981;
+      --warning:#f59e0b;
+      --info:#3b82f6;
+      --danger:#ef4444;
+      --debit:#dc2626;
+      --credit:#059669;
+      --balance:#1e293b;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:40px;
+    }
+    .frame{
+      width:95%;
+      max-width:1200px;
+      background:var(--card);
+      border-radius:24px;
+      padding:34px 48px;
+      box-shadow: var(--soft-shadow);
+      position:relative;
+      overflow:hidden;
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:32px;
+      padding-bottom:20px;
+      border-bottom:2px solid #f1f5f9;
+    }
+    .nav-links{
+      display:flex;
+      gap:24px;
+    }
+    .nav-links a{
+      color:var(--muted);
+      text-decoration:none;
+      font-weight:500;
+      padding:8px 16px;
+      border-radius:8px;
+      transition:all 0.2s;
+    }
+    .nav-links a:hover{
+      background:#f8fafc;
+      color:var(--accent);
+    }
+    .main-title{
+      font-size:2.2rem;
+      font-weight:800;
+      color:#1e293b;
+      margin:0 0 8px 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle{
+      color:var(--muted);
+      font-size:1.1rem;
+      margin:0 0 32px 0;
+    }
+    .partner-info{
+      background:#f8fafc;
+      padding:20px 24px;
+      border-radius:16px;
+      margin-bottom:32px;
+      display:flex;
+      align-items:center;
+      gap:16px;
+    }
+    .partner-icon{
+      width:48px;
+      height:48px;
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius:12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:white;
+      font-size:1.5rem;
+      font-weight:700;
+    }
+    .partner-details h3{
+      margin:0 0 4px 0;
+      font-size:1.4rem;
+      font-weight:700;
+      color:#1e293b;
+    }
+    .partner-details p{
+      margin:0;
+      color:var(--muted);
+      font-size:0.95rem;
+    }
+    .ledger-table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0 8px;
+      margin-top:20px;
+    }
+    .ledger-table thead th{
+      background:#f8fafc;
+      color:var(--muted);
+      font-weight:600;
+      padding:16px 20px;
+      text-align:left;
+      border:none;
+      font-size:0.9rem;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    .ledger-table thead th:first-child{border-radius:12px 0 0 12px}
+    .ledger-table thead th:last-child{border-radius:0 12px 12px 0}
+    .ledger-table thead th.text-right{text-align:right}
+    .ledger-table tbody tr{
+      background:white;
+      box-shadow:0 2px 8px rgba(0,0,0,0.04);
+      transition:all 0.2s;
+    }
+    .ledger-table tbody tr:hover{
+      transform:translateY(-2px);
+      box-shadow:0 8px 25px rgba(0,0,0,0.1);
+    }
+    .ledger-table tbody td{
+      padding:16px 20px;
+      border:none;
+      vertical-align:middle;
+    }
+    .ledger-table tbody td:first-child{border-radius:12px 0 0 12px}
+    .ledger-table tbody td:last-child{border-radius:0 12px 12px 0}
+    .ledger-table tbody td.text-right{text-align:right}
+    .ledger-date{
+      color:var(--muted);
+      font-size:0.95rem;
+      font-weight:500;
+    }
+    .ledger-ref{
+      font-family:monospace;
+      background:#f1f5f9;
+      color:#374151;
+      padding:4px 8px;
+      border-radius:6px;
+      font-size:0.85rem;
+      font-weight:600;
+    }
+    .ledger-account{
+      color:#1e293b;
+      font-weight:500;
+      font-size:0.95rem;
+    }
+    .amount-debit{
+      color:var(--debit);
+      font-weight:600;
+      font-size:1rem;
+    }
+    .amount-credit{
+      color:var(--credit);
+      font-weight:600;
+      font-size:1rem;
+    }
+    .amount-balance{
+      color:var(--balance);
+      font-weight:700;
+      font-size:1.1rem;
+    }
+    .empty-state{
+      text-align:center;
+      padding:60px 20px;
+      color:var(--muted);
+    }
+    .empty-icon{
+      font-size:4rem;
+      margin-bottom:20px;
+      opacity:0.3;
+    }
+    @media (max-width:768px){
+      body{padding:20px}
+      .frame{padding:24px}
+      .main-title{font-size:1.8rem}
+      .ledger-table{font-size:0.9rem}
+      .ledger-table tbody td{padding:12px 8px}
+      .partner-info{flex-direction:column;text-align:center}
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div class="nav-links">
+        <a href="{% url 'dashboard' %}">← Dashboard</a>
+        <a href="#">Reports</a>
+      </div>
+    </div>
+
+    <h1 class="main-title">Partner Ledger Report</h1>
+    <p class="subtitle">Detailed transaction history and account balance</p>
+
+    <div class="partner-info">
+      <div class="partner-icon">
+        {{ partner.name|first|upper }}
+      </div>
+      <div class="partner-details">
+        <h3>{{ partner.name }}</h3>
+        <p>Partner Ledger Statement</p>
+      </div>
+    </div>
+
+    {% if rows %}
+      <table class="ledger-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Reference</th>
+            <th>Account</th>
+            <th class="text-right">Debit</th>
+            <th class="text-right">Credit</th>
+            <th class="text-right">Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>
+              <div class="ledger-date">{{ row.date|date:"M d, Y" }}</div>
+            </td>
+            <td>
+              {% if row.ref %}
+                <span class="ledger-ref">{{ row.ref }}</span>
+              {% else %}
+                <span style="color:var(--muted)">—</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="ledger-account">{{ row.account }}</div>
+            </td>
+            <td class="text-right">
+              {% if row.debit %}
+                <div class="amount-debit">₹{{ row.debit|floatformat:2 }}</div>
+              {% else %}
+                <span style="color:var(--muted)">—</span>
+              {% endif %}
+            </td>
+            <td class="text-right">
+              {% if row.credit %}
+                <div class="amount-credit">₹{{ row.credit|floatformat:2 }}</div>
+              {% else %}
+                <span style="color:var(--muted)">—</span>
+              {% endif %}
+            </td>
+            <td class="text-right">
+              <div class="amount-balance">₹{{ row.balance|floatformat:2 }}</div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-icon">📊</div>
+        <h3>No Transactions Found</h3>
+        <p>There are no transactions for this partner in the selected period.</p>
+      </div>
+    {% endif %}
+  </div>
+</body>
+</html>
 {% endblock %}

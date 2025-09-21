@@ -1,56 +1,401 @@
-{% extends "base.html" %}
+{% load static %}
+
 {% block content %}
-<div class="container mt-4">
-  <div class="card p-3">
-    <h4>Customer Invoice INV/{{ invoice.pk }}</h4>
-    <p><strong>Customer:</strong> {{ invoice.customer }}</p>
-    <p><strong>Date:</strong> {{ invoice.issue_date }}</p>
-    <p><strong>Status:</strong> 
-      {% if invoice.status == 'draft' %}
-        <span class="badge bg-secondary">Draft</span>
-      {% elif invoice.status == 'confirmed' %}
-        <span class="badge bg-success">Confirmed</span>
-      {% else %}
-        <span class="badge bg-danger">Cancelled</span>
-      {% endif %}
-    </p>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Invoice Details</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --card:#ffffff;
+      --accent:#ef4444;
+      --circle:#f05252;
+      --muted:#475569;
+      --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+      --success:#10b981;
+      --warning:#f59e0b;
+      --info:#3b82f6;
+      --danger:#ef4444;
+      --draft:#94a3b8;
+      --confirmed:#10b981;
+      --cancelled:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:40px;
+    }
+    .frame{
+      width:95%;
+      max-width:1000px;
+      background:var(--card);
+      border-radius:24px;
+      padding:34px 48px;
+      box-shadow: var(--soft-shadow);
+      position:relative;
+      overflow:hidden;
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:32px;
+      padding-bottom:20px;
+      border-bottom:2px solid #f1f5f9;
+    }
+    .nav-links{
+      display:flex;
+      gap:24px;
+    }
+    .nav-links a{
+      color:var(--muted);
+      text-decoration:none;
+      font-weight:500;
+      padding:8px 16px;
+      border-radius:8px;
+      transition:all 0.2s;
+    }
+    .nav-links a:hover{
+      background:#f8fafc;
+      color:var(--accent);
+    }
+    .main-title{
+      font-size:2.2rem;
+      font-weight:800;
+      color:#1e293b;
+      margin:0 0 8px 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle{
+      color:var(--muted);
+      font-size:1.1rem;
+      margin:0 0 32px 0;
+    }
+    .invoice-header{
+      background:#f8fafc;
+      padding:24px;
+      border-radius:16px;
+      margin-bottom:32px;
+    }
+    .section-title{
+      font-size:1.3rem;
+      font-weight:700;
+      color:#1e293b;
+      margin:0 0 20px 0;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .section-icon{
+      width:32px;
+      height:32px;
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:white;
+      font-size:1.2rem;
+    }
+    .info-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:20px;
+    }
+    .info-item{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .info-label{
+      font-weight:600;
+      color:var(--muted);
+      font-size:0.9rem;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    .info-value{
+      font-size:1.1rem;
+      font-weight:600;
+      color:#1e293b;
+    }
+    .invoice-number{
+      font-family:monospace;
+      background:#e0f2fe;
+      color:#0369a1;
+      padding:4px 8px;
+      border-radius:6px;
+      font-size:1rem;
+    }
+    .customer-name{
+      color:#059669;
+      font-size:1.2rem;
+    }
+    .status-badge{
+      padding:6px 12px;
+      border-radius:20px;
+      font-size:0.85rem;
+      font-weight:600;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    .status-draft{background:#f1f5f9;color:var(--draft)}
+    .status-confirmed{background:#d1fae5;color:var(--confirmed)}
+    .status-cancelled{background:#fee2e2;color:var(--cancelled)}
+    .lines-section{
+      background:white;
+      border-radius:16px;
+      padding:24px;
+      margin-bottom:32px;
+      border:2px solid #f1f5f9;
+    }
+    .lines-table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0 4px;
+      margin-top:16px;
+    }
+    .lines-table thead th{
+      background:#f8fafc;
+      color:var(--muted);
+      font-weight:600;
+      padding:12px 16px;
+      text-align:left;
+      border:none;
+      font-size:0.85rem;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+      white-space:nowrap;
+    }
+    .lines-table thead th:first-child{border-radius:8px 0 0 8px}
+    .lines-table thead th:last-child{border-radius:0 8px 8px 0}
+    .lines-table thead th.text-right{text-align:right}
+    .lines-table tbody tr{
+      background:white;
+      transition:all 0.2s;
+    }
+    .lines-table tbody tr:hover{
+      background:#f8fafc;
+    }
+    .lines-table tbody td{
+      padding:12px 16px;
+      border:none;
+      vertical-align:middle;
+    }
+    .lines-table tbody td:first-child{
+      border-radius:8px 0 0 8px;
+      font-weight:600;
+      color:#1e293b;
+    }
+    .lines-table tbody td:last-child{border-radius:0 8px 8px 0}
+    .lines-table tbody td.text-right{text-align:right}
+    .product-name{
+      font-weight:600;
+      color:#1e293b;
+      font-size:0.95rem;
+    }
+    .quantity{
+      color:var(--muted);
+      font-weight:500;
+    }
+    .price{
+      color:#374151;
+      font-weight:500;
+    }
+    .tax-percent{
+      color:#f59e0b;
+      font-weight:600;
+    }
+    .tax-amount{
+      color:#f59e0b;
+      font-weight:600;
+    }
+    .line-total{
+      color:#059669;
+      font-weight:700;
+      font-size:1rem;
+    }
+    .actions-section{
+      display:flex;
+      gap:16px;
+      justify-content:center;
+      flex-wrap:wrap;
+    }
+    .btn{
+      padding:14px 28px;
+      border-radius:12px;
+      font-weight:600;
+      font-size:1rem;
+      text-decoration:none;
+      border:none;
+      cursor:pointer;
+      transition:all 0.2s;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    .btn-success{
+      background:linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color:white;
+    }
+    .btn-success:hover{
+      transform:translateY(-2px);
+      box-shadow:0 8px 25px rgba(16,185,129,0.3);
+      color:white;
+    }
+    .btn-primary{
+      background:linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      color:white;
+    }
+    .btn-primary:hover{
+      transform:translateY(-2px);
+      box-shadow:0 8px 25px rgba(59,130,246,0.3);
+      color:white;
+    }
+    .btn-secondary{
+      background:#f1f5f9;
+      color:var(--muted);
+    }
+    .btn-secondary:hover{
+      background:#e2e8f0;
+      transform:translateY(-1px);
+      color:var(--muted);
+    }
+    @media (max-width:768px){
+      body{padding:20px}
+      .frame{padding:24px}
+      .main-title{font-size:1.8rem}
+      .info-grid{grid-template-columns:1fr;gap:16px}
+      .lines-table{font-size:0.85rem}
+      .lines-table thead th, .lines-table tbody td{padding:8px 12px}
+      .actions-section{flex-direction:column}
+      .btn{justify-content:center}
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div class="nav-links">
+        <a href="{% url 'customer_invoices_list' %}">← Invoices</a>
+        <a href="{% url 'dashboard' %}">Dashboard</a>
+      </div>
+    </div>
 
-    <table class="table table-dark table-sm">
-      <thead>
-        <tr>
-          <th>Product</th>
-          <th>Qty</th>
-          <th>Unit Price</th>
-          <th>Tax %</th>
-          <th>Tax Amt</th>
-          <th>Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for line in invoice.lines.all %}
-        <tr>
-          <td>{{ line.product }}</td>
-          <td>{{ line.qty }}</td>
-          <td>{{ line.unit_price }}</td>
-          <td>{{ line.tax_percent }}</td>
-          <td>{{ line.tax_amount }}</td>
-          <td>{{ line.line_total }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <h1 class="main-title">Invoice Details</h1>
+    <p class="subtitle">View and manage customer invoice information</p>
 
-    <div class="mt-3">
+    <div class="invoice-header">
+      <div class="section-title">
+        <div class="section-icon">📄</div>
+        Invoice Information
+      </div>
+      
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Invoice Number</div>
+          <div class="info-value">
+            <span class="invoice-number">INV/{{ invoice.pk }}</span>
+          </div>
+        </div>
+        
+        <div class="info-item">
+          <div class="info-label">Customer</div>
+          <div class="info-value customer-name">{{ invoice.customer }}</div>
+        </div>
+        
+        <div class="info-item">
+          <div class="info-label">Issue Date</div>
+          <div class="info-value">{{ invoice.issue_date|date:"M d, Y" }}</div>
+        </div>
+        
+        <div class="info-item">
+          <div class="info-label">Status</div>
+          <div class="info-value">
+            {% if invoice.status == 'draft' %}
+              <span class="status-badge status-draft">Draft</span>
+            {% elif invoice.status == 'confirmed' %}
+              <span class="status-badge status-confirmed">Confirmed</span>
+            {% else %}
+              <span class="status-badge status-cancelled">Cancelled</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="lines-section">
+      <div class="section-title">
+        <div class="section-icon">📦</div>
+        Invoice Lines
+      </div>
+      
+      <table class="lines-table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th class="text-right">Qty</th>
+            <th class="text-right">Unit Price</th>
+            <th class="text-right">Tax %</th>
+            <th class="text-right">Tax Amt</th>
+            <th class="text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in invoice.lines.all %}
+          <tr>
+            <td>
+              <div class="product-name">{{ line.product }}</div>
+            </td>
+            <td class="text-right">
+              <div class="quantity">{{ line.qty }}</div>
+            </td>
+            <td class="text-right">
+              <div class="price">₹{{ line.unit_price|floatformat:2 }}</div>
+            </td>
+            <td class="text-right">
+              <div class="tax-percent">{{ line.tax_percent }}%</div>
+            </td>
+            <td class="text-right">
+              <div class="tax-amount">₹{{ line.tax_amount|floatformat:2 }}</div>
+            </td>
+            <td class="text-right">
+              <div class="line-total">₹{{ line.line_total|floatformat:2 }}</div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="actions-section">
       {% if invoice.status == 'draft' %}
-        <a href="{% url 'customer_invoice_confirm' invoice.pk %}" 
-           class="btn btn-success">Confirm Invoice</a>
+        <a href="{% url 'customer_invoice_confirm' invoice.pk %}" class="btn btn-success">
+          <span>✓</span> Confirm Invoice
+        </a>
       {% endif %}
       {% if invoice.status == 'confirmed' %}
-        <a href="{% url 'customer_invoice_receive_payment' invoice.pk %}" 
-           class="btn btn-primary">Receive Payment</a>
+        <a href="{% url 'customer_invoice_receive_payment' invoice.pk %}" class="btn btn-primary">
+          <span>💳</span> Receive Payment
+        </a>
       {% endif %}
-      <a href="{% url 'customer_invoices_list' %}" class="btn btn-secondary">Back</a>
+      <a href="{% url 'customer_invoices_list' %}" class="btn btn-secondary">
+        <span>←</span> Back to Invoices
+      </a>
     </div>
   </div>
-</div>
+</body>
+</html>
 {% endblock %}

@@ -1,55 +1,417 @@
 {% extends "base.html" %}
+{% load static %}
+
 {% block content %}
-<div class="container">
-  <h2>Customer Invoices</h2>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Customer Invoices</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --card:#ffffff;
+      --accent:#ef4444;
+      --circle:#f05252;
+      --muted:#475569;
+      --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+      --table-border: #eee;
+      --success:#10b981;
+      --warning:#f59e0b;
+      --info:#3b82f6;
+      --draft:#94a3b8;
+      --confirmed:#10b981;
+      --paid:#3b82f6;
+      --overdue:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+      display:flex;
+      flex-direction:column;
+    }
+    .navbar{
+      background:rgba(255,255,255,0.95);
+      backdrop-filter:blur(10px);
+      padding:16px 32px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      box-shadow:0 2px 10px rgba(0,0,0,0.1);
+      position:sticky;
+      top:0;
+      z-index:100;
+    }
+    .navbar-brand{
+      font-size:1.8rem;
+      font-weight:800;
+      color:#1e293b;
+      text-decoration:none;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .navbar-nav{
+      display:flex;
+      gap:24px;
+      align-items:center;
+    }
+    .nav-link{
+      color:var(--muted);
+      text-decoration:none;
+      font-weight:500;
+      padding:8px 16px;
+      border-radius:8px;
+      transition:all 0.2s;
+    }
+    .nav-link:hover{
+      background:rgba(102,126,234,0.1);
+      color:#667eea;
+    }
+    .main-content{
+      flex:1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:40px;
+    }
+    .frame{
+      width:95%;
+      max-width:1200px;
+      background:var(--card);
+      border-radius:24px;
+      padding:34px 48px;
+      box-shadow: var(--soft-shadow);
+      position:relative;
+      overflow:hidden;
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:32px;
+      padding-bottom:20px;
+      border-bottom:2px solid #f1f5f9;
+    }
+    .nav-links{
+      display:flex;
+      gap:24px;
+    }
+    .nav-links a{
+      color:var(--muted);
+      text-decoration:none;
+      font-weight:500;
+      padding:8px 16px;
+      border-radius:8px;
+      transition:all 0.2s;
+    }
+    .nav-links a:hover{
+      background:#f8fafc;
+      color:var(--accent);
+    }
+    .main-title{
+      font-size:2.5rem;
+      font-weight:800;
+      color:#1e293b;
+      margin:0 0 8px 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle{
+      color:var(--muted);
+      font-size:1.1rem;
+      margin:0 0 32px 0;
+    }
+    .stats-row{
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));
+      gap:20px;
+      margin-bottom:32px;
+    }
+    .stat-card{
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color:white;
+      padding:20px;
+      border-radius:16px;
+      text-align:center;
+    }
+    .stat-number{
+      font-size:2rem;
+      font-weight:700;
+      margin-bottom:4px;
+    }
+    .stat-label{
+      font-size:0.9rem;
+      opacity:0.9;
+    }
+    .main-table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0 8px;
+      margin-top:20px;
+    }
+    .main-table thead th{
+      background:#f8fafc;
+      color:var(--muted);
+      font-weight:600;
+      padding:16px 20px;
+      text-align:left;
+      border:none;
+      font-size:0.9rem;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    .main-table thead th:first-child{border-radius:12px 0 0 12px}
+    .main-table thead th:last-child{border-radius:0 12px 12px 0}
+    .main-table thead th.text-right{text-align:right}
+    .main-table tbody tr{
+      background:white;
+      box-shadow:0 2px 8px rgba(0,0,0,0.04);
+      transition:all 0.2s;
+    }
+    .main-table tbody tr:hover{
+      transform:translateY(-2px);
+      box-shadow:0 8px 25px rgba(0,0,0,0.1);
+    }
+    .main-table tbody td{
+      padding:20px;
+      border:none;
+      vertical-align:middle;
+    }
+    .main-table tbody td:first-child{border-radius:12px 0 0 12px}
+    .main-table tbody td:last-child{border-radius:0 12px 12px 0}
+    .main-table tbody td.text-right{text-align:right}
+    .invoice-id{
+      font-weight:700;
+      color:#1e293b;
+      font-family:monospace;
+      background:#f1f5f9;
+      padding:4px 8px;
+      border-radius:6px;
+      font-size:0.9rem;
+    }
+    .customer-name{
+      font-weight:600;
+      color:#1e293b;
+      font-size:1.1rem;
+    }
+    .invoice-date{
+      color:var(--muted);
+      font-size:0.95rem;
+    }
+    .invoice-reference{
+      color:var(--muted);
+      font-size:0.95rem;
+      font-style:italic;
+    }
+    .invoice-total{
+      font-weight:700;
+      color:#059669;
+      font-size:1.1rem;
+    }
+    .status-badge{
+      padding:6px 12px;
+      border-radius:20px;
+      font-size:0.85rem;
+      font-weight:600;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    .status-draft{background:#f1f5f9;color:var(--draft)}
+    .status-confirmed{background:#d1fae5;color:var(--confirmed)}
+    .status-paid{background:#dbeafe;color:var(--paid)}
+    .status-overdue{background:#fee2e2;color:var(--overdue)}
+    .action-buttons{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .action-btn{
+      padding:6px 12px;
+      border-radius:6px;
+      text-decoration:none;
+      font-weight:500;
+      font-size:0.85rem;
+      transition:all 0.2s;
+    }
+    .btn-view{
+      background:#e0f2fe;
+      color:#0369a1;
+    }
+    .btn-view:hover{
+      background:#bae6fd;
+      transform:translateY(-1px);
+      color:#0369a1;
+    }
+    .btn-confirm{
+      background:#d1fae5;
+      color:#059669;
+    }
+    .btn-confirm:hover{
+      background:#a7f3d0;
+      transform:translateY(-1px);
+      color:#059669;
+    }
+    .pagination{
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      gap:16px;
+      margin-top:32px;
+      padding:20px;
+      background:#f8fafc;
+      border-radius:12px;
+    }
+    .pagination a{
+      padding:8px 16px;
+      background:white;
+      color:var(--muted);
+      text-decoration:none;
+      border-radius:8px;
+      font-weight:500;
+      transition:all 0.2s;
+      box-shadow:0 2px 4px rgba(0,0,0,0.1);
+    }
+    .pagination a:hover{
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color:white;
+      transform:translateY(-1px);
+    }
+    .pagination .current-page{
+      padding:8px 16px;
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color:white;
+      border-radius:8px;
+      font-weight:600;
+    }
+    .empty-state{
+      text-align:center;
+      padding:60px 20px;
+      color:var(--muted);
+    }
+    .empty-icon{
+      font-size:4rem;
+      margin-bottom:20px;
+      opacity:0.3;
+    }
+    @media (max-width:768px){
+      .navbar{padding:12px 20px}
+      .navbar-brand{font-size:1.5rem}
+      .navbar-nav{gap:16px}
+      .main-content{padding:20px}
+      .frame{padding:24px}
+      .main-title{font-size:1.8rem}
+      .stats-row{grid-template-columns:1fr}
+      .main-table{font-size:0.9rem}
+      .main-table tbody td{padding:16px 12px}
+      .action-buttons{flex-direction:column}
+      .pagination{flex-direction:column;gap:12px}
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <a href="#" class="navbar-brand">Shiv Accounts</a>
+    <div class="navbar-nav">
+      <a href="{% url 'dashboard' %}" class="nav-link">Home</a>
+      <a href="{% url 'dashboard' %}" class="nav-link">Back</a>
+    </div>
+  </nav>
+  
+  <div class="main-content">
+    <div class="frame">
+      <div class="topbar">
+        <div class="nav-links">
+          <a href="{% url 'dashboard' %}">← Dashboard</a>
+          <a href="{% url 'sales_order_list' %}">Sales Orders</a>
+          <a href="{% url 'contacts_list' %}">Contacts</a>
+        </div>
+      </div>
 
-  {% if invoices %}
-  <table class="table table-bordered table-sm">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Date</th>
-        <th>Customer</th>
-        <th>Reference</th>
-        <th>Status</th>
-        <th>Total</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for inv in invoices %}
-      <tr>
-        <td>{{ inv.id }}</td>
-        <td>{{ inv.issue_date }}</td>
-        <td>{{ inv.customer }}</td>
-        <td>{{ inv.reference }}</td>
-        <td>{{ inv.status }}</td>
-        <td>
-          {{ inv.total_amount|default:"—" }}
-        </td>
-        <td>
-          <a href="{% url 'customer_invoice_detail' inv.pk %}">View</a>
-          {% if inv.status != 'confirmed' %}
-            | <a href="{% url 'customer_invoice_confirm' inv.pk %}">Confirm</a>
+    <h1 class="main-title">Customer Invoices</h1>
+    <p class="subtitle">Manage and track all your customer invoices and payments</p>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-number">{{ invoices|length }}</div>
+        <div class="stat-label">Total Invoices</div>
+      </div>
+      
+    </div>
+
+    {% if invoices %}
+      <table class="main-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Date</th>
+            <th>Customer</th>
+            <th>Reference</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in invoices %}
+          <tr>
+            <td>
+              <span class="invoice-id">#{{ inv.id }}</span>
+            </td>
+            <td>
+              <div class="invoice-date">{{ inv.issue_date|date:"M d, Y" }}</div>
+            </td>
+            <td>
+              <div class="customer-name">{{ inv.customer }}</div>
+            </td>
+            <td>
+              <div class="invoice-reference">{{ inv.reference|default:"No reference" }}</div>
+            </td>
+            <td>
+              <span class="status-badge status-{{ inv.status|lower }}">
+                {{ inv.status|capfirst }}
+              </span>
+            </td>
+            <td>
+              <div class="action-buttons">
+                <a class="action-btn btn-view" href="{% url 'customer_invoice_detail' inv.pk %}">View</a>
+                {% if inv.status != 'confirmed' %}
+                  <a class="action-btn btn-confirm" href="{% url 'customer_invoice_confirm' inv.pk %}">Confirm</a>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      {% if page_obj %}
+        <div class="pagination">
+          {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}">← Previous</a>
           {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+          <span class="current-page">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+          {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}">Next →</a>
+          {% endif %}
+        </div>
+      {% endif %}
 
-  <div class="mt-3">
-    {% if page_obj.has_previous %}
-      <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-icon">📄</div>
+        <h3>No Customer Invoices Found</h3>
+        <p>You haven't created any customer invoices yet. Invoices will appear here once they are generated from sales orders.</p>
+      </div>
     {% endif %}
-    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-    {% if page_obj.has_next %}
-      <a href="?page={{ page_obj.next_page_number }}">Next</a>
-    {% endif %}
+    </div>
   </div>
-
-  {% else %}
-    <p>No invoices yet.</p>
-  {% endif %}
-</div>
+</body>
+</html>
 {% endblock %}

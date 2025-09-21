@@ -1,41 +1,340 @@
 {% extends "base.html" %}
+{% load static %}
+
 {% block content %}
-<div class="container mt-4">
-  <div class="card p-3">
-    <h3>My Invoices — {{ contact.name }}</h3>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>My Invoices Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --card:#ffffff;
+      --accent:#ef4444;
+      --circle:#f05252;
+      --muted:#475569;
+      --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+      --success:#10b981;
+      --warning:#f59e0b;
+      --info:#3b82f6;
+      --danger:#ef4444;
+      --paid:#10b981;
+      --pending:#f59e0b;
+      --overdue:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:40px;
+    }
+    .frame{
+      width:95%;
+      max-width:1200px;
+      background:var(--card);
+      border-radius:24px;
+      padding:34px 48px;
+      box-shadow: var(--soft-shadow);
+      position:relative;
+      overflow:hidden;
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:32px;
+      padding-bottom:20px;
+      border-bottom:2px solid #f1f5f9;
+    }
+    .customer-info{
+      display:flex;
+      align-items:center;
+      gap:16px;
+    }
+    .customer-avatar{
+      width:48px;
+      height:48px;
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius:12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:white;
+      font-size:1.5rem;
+      font-weight:700;
+    }
+    .customer-details h2{
+      margin:0;
+      font-size:1.4rem;
+      font-weight:700;
+      color:#1e293b;
+    }
+    .customer-details p{
+      margin:0;
+      color:var(--muted);
+      font-size:0.9rem;
+    }
+    .logout-btn{
+      background:#f1f5f9;
+      color:var(--muted);
+      padding:8px 16px;
+      border-radius:8px;
+      text-decoration:none;
+      font-weight:500;
+      transition:all 0.2s;
+    }
+    .logout-btn:hover{
+      background:#e2e8f0;
+      color:var(--muted);
+    }
+    .main-title{
+      font-size:2.2rem;
+      font-weight:800;
+      color:#1e293b;
+      margin:0 0 8px 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle{
+      color:var(--muted);
+      font-size:1.1rem;
+      margin:0 0 32px 0;
+    }
+    .stats-row{
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));
+      gap:20px;
+      margin-bottom:32px;
+    }
+    .stat-card{
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color:white;
+      padding:20px;
+      border-radius:16px;
+      text-align:center;
+    }
+    .stat-number{
+      font-size:1.8rem;
+      font-weight:700;
+      margin-bottom:4px;
+    }
+    .stat-label{
+      font-size:0.9rem;
+      opacity:0.9;
+    }
+    .main-table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0 8px;
+      margin-top:20px;
+    }
+    .main-table thead th{
+      background:#f8fafc;
+      color:var(--muted);
+      font-weight:600;
+      padding:16px 20px;
+      text-align:left;
+      border:none;
+      font-size:0.9rem;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    .main-table thead th:first-child{border-radius:12px 0 0 12px}
+    .main-table thead th:last-child{border-radius:0 12px 12px 0}
+    .main-table thead th.text-right{text-align:right}
+    .main-table tbody tr{
+      background:white;
+      box-shadow:0 2px 8px rgba(0,0,0,0.04);
+      transition:all 0.2s;
+    }
+    .main-table tbody tr:hover{
+      transform:translateY(-2px);
+      box-shadow:0 8px 25px rgba(0,0,0,0.1);
+    }
+    .main-table tbody td{
+      padding:20px;
+      border:none;
+      vertical-align:middle;
+    }
+    .main-table tbody td:first-child{border-radius:12px 0 0 12px}
+    .main-table tbody td:last-child{border-radius:0 12px 12px 0}
+    .main-table tbody td.text-right{text-align:right}
+    .invoice-number{
+      font-weight:700;
+      color:#1e293b;
+      font-family:monospace;
+      background:#f1f5f9;
+      padding:4px 8px;
+      border-radius:6px;
+      font-size:0.9rem;
+    }
+    .invoice-date{
+      color:var(--muted);
+      font-size:0.95rem;
+    }
+    .amount-total{
+      font-weight:600;
+      color:#1e293b;
+      font-size:1rem;
+    }
+    .amount-paid{
+      font-weight:600;
+      color:#059669;
+      font-size:1rem;
+    }
+    .amount-due{
+      font-weight:700;
+      color:#dc2626;
+      font-size:1.1rem;
+    }
+    .status-badge{
+      padding:6px 12px;
+      border-radius:20px;
+      font-size:0.85rem;
+      font-weight:600;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    .status-draft{background:#f1f5f9;color:#94a3b8}
+    .status-confirmed{background:#d1fae5;color:#059669}
+    .status-paid{background:#dbeafe;color:#2563eb}
+    .status-overdue{background:#fee2e2;color:#dc2626}
+    .pay-btn{
+      background:linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color:white;
+      padding:8px 16px;
+      border-radius:8px;
+      text-decoration:none;
+      font-weight:500;
+      font-size:0.9rem;
+      transition:all 0.2s;
+    }
+    .pay-btn:hover{
+      transform:translateY(-1px);
+      box-shadow:0 4px 12px rgba(16,185,129,0.3);
+      color:white;
+    }
+    .paid-badge{
+      background:#d1fae5;
+      color:#059669;
+      padding:6px 12px;
+      border-radius:20px;
+      font-size:0.85rem;
+      font-weight:600;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    .empty-state{
+      text-align:center;
+      padding:60px 20px;
+      color:var(--muted);
+    }
+    .empty-icon{
+      font-size:4rem;
+      margin-bottom:20px;
+      opacity:0.3;
+    }
+    @media (max-width:768px){
+      body{padding:20px}
+      .frame{padding:24px}
+      .main-title{font-size:1.8rem}
+      .stats-row{grid-template-columns:1fr}
+      .main-table{font-size:0.9rem}
+      .main-table tbody td{padding:16px 12px}
+      .topbar{flex-direction:column;gap:16px;align-items:stretch}
+      .customer-info{justify-content:center}
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div class="customer-info">
+        <div class="customer-avatar">
+          {{ contact.name|first|upper }}
+        </div>
+        <div class="customer-details">
+          <h2>{{ contact.name }}</h2>
+          <p>Customer Portal</p>
+        </div>
+      </div>
+      <a class="logout-btn" href="{% url 'customer_logout' %}">
+        <span>🚪</span> Logout
+      </a>
+    </div>
+
+    <h1 class="main-title">My Invoices</h1>
+    <p class="subtitle">View and manage your invoices and payment history</p>
 
     {% if invoice_rows %}
-      <table class="table table-sm">
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-number">{{ invoice_rows|length }}</div>
+          <div class="stat-label">Total Invoices</div>
+        </div>
+     
+        <div class="stat-card">
+          <div class="stat-number">{{ invoice_rows|length|add:0 }}</div>
+          <div class="stat-label">This Year</div>
+        </div>
+      </div>
+
+      <table class="main-table">
         <thead>
           <tr>
             <th>Invoice #</th>
             <th>Issue Date</th>
             <th>Due Date</th>
-            <th style="text-align:right">Total</th>
-            <th style="text-align:right">Paid</th>
-            <th style="text-align:right">Amount Due</th>
+            <th class="text-right">Total</th>
+            <th class="text-right">Paid</th>
+            <th class="text-right">Amount Due</th>
             <th>Status</th>
-            <th></th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>
           {% for row in invoice_rows %}
           {% with inv=row.invoice %}
           <tr>
-            <td>{{ inv.number|default:inv.pk }}</td>
-            <td>{{ inv.issue_date }}</td>
-            <td>{{ inv.due_date }}</td>
-            <td style="text-align:right">{{ row.total_amount|floatformat:2 }}</td>
-            <td style="text-align:right">{{ row.paid|floatformat:2 }}</td>
-            <td style="text-align:right">{{ row.amount_due|floatformat:2 }}</td>
-            <td>{{ inv.status }}</td>
+            <td>
+              <span class="invoice-number">{{ inv.number|default:inv.pk }}</span>
+            </td>
+            <td>
+              <div class="invoice-date">{{ inv.issue_date|date:"M d, Y" }}</div>
+            </td>
+            <td>
+              <div class="invoice-date">{{ inv.due_date|date:"M d, Y" }}</div>
+            </td>
+            <td class="text-right">
+              <div class="amount-total">₹{{ row.total_amount|floatformat:2 }}</div>
+            </td>
+            <td class="text-right">
+              <div class="amount-paid">₹{{ row.paid|floatformat:2 }}</div>
+            </td>
+            <td class="text-right">
+              <div class="amount-due">₹{{ row.amount_due|floatformat:2 }}</div>
+            </td>
+            <td>
+              <span class="status-badge status-{{ inv.status|lower }}">
+                {{ inv.status|capfirst }}
+              </span>
+            </td>
             <td>
               {% if inv.pk and row.amount_due > 0 %}
-                <a href="{% url 'customer_portal_pay' inv.pk %}" class="btn btn-sm btn-primary">Pay</a>
+                <a href="{% url 'portal_invoice_pay_create_order' inv.pk %}" class="pay-btn">Pay Now</a>
               {% elif row.amount_due <= 0 %}
-                <span class="badge bg-success">Paid</span>
+                <span class="paid-badge">Paid</span>
               {% else %}
-                <span class="text-muted">—</span>
+                <span style="color:var(--muted)">—</span>
               {% endif %}
             </td>
           </tr>
@@ -44,12 +343,13 @@
         </tbody>
       </table>
     {% else %}
-      <p>No invoices found.</p>
+      <div class="empty-state">
+        <div class="empty-icon">📄</div>
+        <h3>No Invoices Found</h3>
+        <p>You don't have any invoices at the moment. Invoices will appear here when they are issued.</p>
+      </div>
     {% endif %}
-
-    <div class="mt-3">
-      <a href="{% url 'customer_logout' %}" class="btn btn-secondary">Logout</a>
-    </div>
   </div>
-</div>
-{% endblock %}
+</body>
+</html>
+    {% endblock %}

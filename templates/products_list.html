@@ -1,40 +1,124 @@
 {% comment %} {% extends 'base.html' %} {% endcomment %}
+{% load static %}
 
 {% block content %}
-<style>
-  :root{
-    --card:#ffffff;
-    --accent:#ef4444; /* vibrant red button */
-    --muted:#475569; /* slate gray for text */
-    --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
-    --table-border: #eee;
-  }
-  *{box-sizing:border-box}
-  .prod-frame{
-    width:95%;
-    max-width:1180px;
-    background:var(--card);
-    border-radius:18px;
-    padding:24px 28px;
-    box-shadow: var(--soft-shadow);
-    margin: 24px auto;
-  }
-  .topbar{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin-bottom:12px;
-    gap:12px;
-  }
-  .left-links, .right-links{
-    display:flex;
-    gap:12px;
-    align-items:center;
-    font-weight:600;
-    color:var(--muted);
-  }
-  h1{font-size:20px;margin:6px 0 0 0;color:var(--accent)}
-  .subtitle{display:block;color:var(--muted);margin-bottom:12px}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Product Master - List View</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --card:#ffffff;
+      --accent:#ef4444;
+      --circle:#f05252;
+      --muted:#475569;
+      --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+      --table-border: #eee;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+    }
+    .main-container{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:40px;
+      min-height:calc(100vh - 80px);
+    }
+    .navbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:20px 48px;
+      background:#000000;
+      border-bottom:1px solid #333;
+      position:sticky;
+      top:0;
+      z-index:1000;
+      min-height:70px;
+    }
+    .navbar-brand{
+      font-size:24px;
+      font-weight:700;
+      color:#ffffff;
+      text-decoration:none;
+      letter-spacing:0.5px;
+    }
+    .navbar-nav{
+      display:flex;
+      gap:32px;
+      align-items:center;
+      font-weight:500;
+      color:#ffffff;
+      letter-spacing:0.2px;
+    }
+    .navbar-nav a{ 
+      color: #ffffff; 
+      text-decoration:none;
+      padding:10px 20px;
+      border-radius:8px;
+      transition:all 0.3s ease;
+      font-size:16px;
+    }
+    .navbar-nav a:hover{
+      background-color:#333333;
+      color:#ffffff;
+    }
+    .frame{
+      width:95%;
+      max-width:1180px;
+      background:var(--card);
+      border-radius:24px;
+      padding:34px 48px;
+      box-shadow: var(--soft-shadow);
+      position:relative;
+    }
+    .action-bar{
+      display:flex;
+      justify-content:flex-end;
+      margin-bottom:24px;
+      padding-top:16px;
+    }
+    .btn-new{
+      background-color:var(--accent);
+      color:#ffffff;
+      padding:12px 24px;
+      border-radius:8px;
+      text-decoration:none;
+      font-weight:600;
+      font-size:14px;
+      letter-spacing:0.3px;
+      transition:all 0.3s ease;
+      box-shadow:0 2px 8px rgba(239,68,68,0.3);
+    }
+    .btn-new:hover{
+      background-color:#dc2626;
+      transform:translateY(-1px);
+      box-shadow:0 4px 12px rgba(239,68,68,0.4);
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:12px;
+      gap:12px;
+    }
+    .left-links, .right-links{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      font-weight:600;
+      color:var(--muted);
+    }
+    h1{font-size:24px;margin:6px 0 0 0;text-align:center;color:var(--accent)}
+    .subtitle{display:block;text-align:center;color:var(--muted);margin-bottom:26px}
 
   .table-container{
     overflow-x:auto;
@@ -121,24 +205,34 @@
   }
 
   @media (max-width:900px){
-    .prod-frame{ padding:16px; }
+    .frame{ padding:16px; }
     th, td { padding:10px; font-size:13px; }
   }
-</style>
+  </style>
+</head>
+<body>
+  <!-- Navbar in Header -->
+  <nav class="navbar">
+    <div class="navbar-brand">
+      Shiva Accounts
+    </div>
+    <div class="navbar-nav">
+      <a href="{% url 'dashboard' %}">Home</a>
+      <a href="javascript:history.back()">Back</a>
+      <a href="{% url 'contacts_list' %}">Contact</a>
+      <a href="{% url 'products_list' %}">Products</a>
+      <a href="{% url 'logout' %}">Logout</a>
+    </div>
+  </nav>
 
-<div class="prod-frame">
-  <div class="topbar">
-    <div class="left-links">
+  <div class="main-container">
+    <div class="frame">
       <h1>Product Master</h1>
-    </div>
-    <div class="right-links">
-      <a href="{% url 'products_add' %}" class="page-btn" style="background:var(--accent);color:#fff;border:none">New</a>
-    </div>
-  </div>
-
-  <div class="subtitle">
-    {% if products.paginator.count %}Showing {{ products.paginator.count }} products — Page {{ products.number }} of {{ products.paginator.num_pages }}{% else %}No products found.{% endif %}
-  </div>
+      <div class="subtitle">List View</div>
+      
+      <div class="action-bar">
+        <a href="{% url 'products_add' %}" class="btn-new">New Product</a>
+      </div>
 
   <div class="table-container">
     <table>
@@ -271,5 +365,8 @@
       {% endif %}
     </div>
   {% endif %}
-</div>
+    </div>
+  </div>
+</body>
+</html>
 {% endblock %}

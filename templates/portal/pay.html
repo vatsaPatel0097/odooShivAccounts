@@ -1,46 +1,341 @@
 {% extends "base.html" %}
+{% load static %}
+
 {% block content %}
-<div class="container mt-3">
-  <div class="card p-3">
-    <h4>Pay Invoice {{ invoice.number|default:invoice.pk }}</h4>
-    <p><strong>Customer:</strong> {{ contact.name }}</p>
-    <p><strong>Invoice amount:</strong> {{ total_amount|floatformat:2 }}</p>
-    <p><strong>Paid so far:</strong> {{ paid|floatformat:2 }}</p>
-    <p><strong>Amount due:</strong> {{ amount_due|floatformat:2 }}</p>
-
-    <form method="post">{% csrf_token %}
-      <div class="mb-2">
-        <label>Amount to pay</label>
-        <input type="number" name="amount" step="0.01" class="form-control" value="{{ amount_due|floatformat:2 }}" required>
-        <small class="text-muted">You can pay full amount or a partial amount (if allowed).</small>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pay Invoice</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --card:#ffffff;
+      --accent:#ef4444;
+      --circle:#f05252;
+      --muted:#475569;
+      --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+      --success:#10b981;
+      --warning:#f59e0b;
+      --info:#3b82f6;
+      --danger:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:40px;
+    }
+    .frame{
+      width:95%;
+      max-width:700px;
+      background:var(--card);
+      border-radius:24px;
+      padding:34px 48px;
+      box-shadow: var(--soft-shadow);
+      position:relative;
+      overflow:hidden;
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:32px;
+      padding-bottom:20px;
+      border-bottom:2px solid #f1f5f9;
+    }
+    .nav-links{
+      display:flex;
+      gap:24px;
+    }
+    .nav-links a{
+      color:var(--muted);
+      text-decoration:none;
+      font-weight:500;
+      padding:8px 16px;
+      border-radius:8px;
+      transition:all 0.2s;
+    }
+    .nav-links a:hover{
+      background:#f8fafc;
+      color:var(--accent);
+    }
+    .main-title{
+      font-size:2.2rem;
+      font-weight:800;
+      color:#1e293b;
+      margin:0 0 8px 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle{
+      color:var(--muted);
+      font-size:1.1rem;
+      margin:0 0 32px 0;
+    }
+    .invoice-summary{
+      background:#f8fafc;
+      padding:24px;
+      border-radius:16px;
+      margin-bottom:32px;
+    }
+    .section-title{
+      font-size:1.3rem;
+      font-weight:700;
+      color:#1e293b;
+      margin:0 0 20px 0;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .section-icon{
+      width:32px;
+      height:32px;
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:white;
+      font-size:1.2rem;
+    }
+    .info-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:20px;
+    }
+    .info-item{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .info-item.full-width{
+      grid-column:1 / -1;
+    }
+    .info-label{
+      font-weight:600;
+      color:var(--muted);
+      font-size:0.9rem;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    .info-value{
+      font-size:1.1rem;
+      font-weight:600;
+      color:#1e293b;
+    }
+    .invoice-number{
+      font-family:monospace;
+      background:#e0f2fe;
+      color:#0369a1;
+      padding:4px 8px;
+      border-radius:6px;
+      font-size:1rem;
+    }
+    .customer-name{
+      color:#059669;
+      font-size:1.2rem;
+    }
+    .amount-total{
+      color:#1e293b;
+      font-size:1.1rem;
+    }
+    .amount-paid{
+      color:#059669;
+      font-size:1.1rem;
+    }
+    .amount-due{
+      color:#dc2626;
+      font-size:1.3rem;
+      font-weight:700;
+    }
+    .payment-form{
+      background:white;
+      border:2px solid #f1f5f9;
+      border-radius:16px;
+      padding:24px;
+      margin-bottom:24px;
+    }
+    .form-group{
+      margin-bottom:20px;
+    }
+    .form-label{
+      font-weight:600;
+      color:#374151;
+      font-size:0.95rem;
+      margin-bottom:8px;
+      display:block;
+    }
+    .form-input, .form-select{
+      width:100%;
+      padding:12px 16px;
+      border:2px solid #e5e7eb;
+      border-radius:12px;
+      font-size:1rem;
+      transition:all 0.2s;
+      background:white;
+    }
+    .form-input:focus, .form-select:focus{
+      outline:none;
+      border-color:#667eea;
+      box-shadow:0 0 0 3px rgba(102,126,234,0.1);
+    }
+    .form-help{
+      font-size:0.85rem;
+      color:var(--muted);
+      margin-top:6px;
+    }
+    .form-actions{
+      display:flex;
+      gap:16px;
+      justify-content:center;
+      margin-top:32px;
+    }
+    .btn{
+      padding:14px 28px;
+      border-radius:12px;
+      font-weight:600;
+      font-size:1rem;
+      text-decoration:none;
+      border:none;
+      cursor:pointer;
+      transition:all 0.2s;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    .btn-success{
+      background:linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color:white;
+    }
+    .btn-success:hover{
+      transform:translateY(-2px);
+      box-shadow:0 8px 25px rgba(16,185,129,0.3);
+    }
+    .btn-secondary{
+      background:#f1f5f9;
+      color:var(--muted);
+    }
+    .btn-secondary:hover{
+      background:#e2e8f0;
+      transform:translateY(-1px);
+      color:var(--muted);
+    }
+    @media (max-width:768px){
+      body{padding:20px}
+      .frame{padding:24px}
+      .main-title{font-size:1.8rem}
+      .info-grid{grid-template-columns:1fr;gap:16px}
+      .form-actions{flex-direction:column}
+      .btn{justify-content:center}
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div class="nav-links">
+        <a href="{% url 'customer_portal_invoices' %}">← My Invoices</a>
       </div>
+    </div>
 
-      <div class="mb-2">
-        <label>Account (where customer will pay to)</label>
-        <select name="account" class="form-control">
-          {% for acc in asset_accounts %}
-            <option value="{{ acc.pk }}">{{ acc.name }}</option>
-          {% endfor %}
-        </select>
+    <h1 class="main-title">Pay Invoice</h1>
+    <p class="subtitle">Complete your payment securely and easily</p>
+
+    <div class="invoice-summary">
+      <div class="section-title">
+        <div class="section-icon">📄</div>
+        Invoice Details
       </div>
-
-      <div class="mb-2">
-        <label>Method</label>
-        <select name="method" class="form-control">
-          <option value="bank">Bank</option>
-          <option value="cash">Cash</option>
-          <option value="other">Other</option>
-        </select>
+      
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Invoice Number</div>
+          <div class="info-value">
+            <span class="invoice-number">{{ invoice.number|default:invoice.pk }}</span>
+          </div>
+        </div>
+        
+        <div class="info-item">
+          <div class="info-label">Customer</div>
+          <div class="info-value customer-name">{{ contact.name }}</div>
+        </div>
+        
+        <div class="info-item">
+          <div class="info-label">Invoice Amount</div>
+          <div class="info-value amount-total">₹{{ total_amount|floatformat:2 }}</div>
+        </div>
+        
+        <div class="info-item">
+          <div class="info-label">Paid So Far</div>
+          <div class="info-value amount-paid">₹{{ paid|floatformat:2 }}</div>
+        </div>
+        
+        <div class="info-item full-width">
+          <div class="info-label">Amount Due</div>
+          <div class="info-value amount-due">₹{{ amount_due|floatformat:2 }}</div>
+        </div>
       </div>
+    </div>
 
-      <div class="mb-2">
-        <label>Reference (optional)</label>
-        <input type="text" name="reference" class="form-control" placeholder="Txn ref / payment id">
+    <div class="payment-form">
+      <div class="section-title">
+        <div class="section-icon">💳</div>
+        Payment Information
       </div>
+      
+      <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+          <label class="form-label">Amount to Pay *</label>
+          <input type="number" name="amount" step="0.01" class="form-input" value="{{ amount_due|floatformat:2 }}" required>
+          <div class="form-help">You can pay full amount or a partial amount (if allowed).</div>
+        </div>
 
-      <button class="btn btn-success">Pay</button>
-      <a class="btn btn-secondary" href="{% url 'customer_portal_invoices' %}">Cancel</a>
-    </form>
+        <div class="form-group">
+          <label class="form-label">Account (where customer will pay to) *</label>
+          <select name="account_id" class="form-select" required>
+            {% for acc in asset_accounts %}
+              <option value="{{ acc.pk }}">{{ acc.name }}</option>
+            {% endfor %}
+          </select>
+          
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Payment Method *</label>
+          <select name="method" class="form-select" required>
+            <option value="bank">Bank Transfer</option>
+            <option value="cash">Cash Payment</option>
+            <option value="other">Other Method</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Reference (optional)</label>
+          <input type="text" name="reference" class="form-input" placeholder="Transaction reference / payment ID">
+          <div class="form-help">Enter any reference number or payment ID for your records.</div>
+        </div>
+
+        <div class="form-actions">
+          <a class="btn btn-secondary" href="{% url 'customer_portal_invoices' %}">
+            <span>←</span> Cancel
+          </a>
+          <button class="btn btn-success" type="submit">
+            <span>💳</span> Process Payment
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
-</div>
+</body>
+</html>
 {% endblock %}

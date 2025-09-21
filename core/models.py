@@ -7,7 +7,7 @@ from datetime import date,datetime
 import uuid
 from django.http import JsonResponse
 from django.contrib.auth.hashers import make_password, check_password
-
+from django.db.models import Sum
 
 class User(models.Model):
     ROLE_CHOICES = (('admin','Admin'),('invoicing','Invoicing User'))
@@ -123,25 +123,6 @@ class Product(models.Model):
         if not self.purchase_tax: return None
         return float(self.purchase_tax.value)
 
-
-# class Account(models.Model):
-#     ACCOUNT_TYPES = [
-#         ('asset', 'Asset'),
-#         ('liability', 'Liability'),
-#         ('income', 'Income'),
-#         ('expense', 'Expense'),
-#         ('equity', 'Equity'),
-#     ]
-
-#     name = models.CharField(max_length=150, unique=True)
-#     account_type = models.CharField(max_length=20, choices=ACCOUNT_TYPES)
-#     code = models.CharField(max_length=20, blank=True, null=True)   # optional numeric code
-#     archived = models.BooleanField(default=False)
-#     created_at = models.DateTimeField(auto_now_add=True)
-
-#     def __str__(self):
-#         return f"{self.name} ({self.get_account_type_display()})"
-
 class JournalEntry(models.Model):
     """
     A header for a group of journal lines representing a single accounting event.
@@ -219,6 +200,20 @@ class VendorBill(models.Model):
 
     def __str__(self):
         return f"Bill/{self.pk} - {self.vendor}"
+
+    @property
+    def total_amount(self):
+        """
+        Sum of line_total across related lines (DB aggregate).
+        Returns Decimal('0.00') if no lines.
+        """
+        agg = self.lines.aggregate(total=Sum('line_total'))
+        return agg['total'] or Decimal('0.00')
+
+    # optional: also provide net / tax totals
+    @property
+    def net_amount(self):
+        agg = self.lines.aggregate(total=Sum('unit_price' * F('qty'))) 
 
     @transaction.atomic
     def confirm(self):
@@ -346,6 +341,13 @@ class Payment(models.Model):
 
     bill = models.ForeignKey('core.VendorBill', related_name='payments', on_delete=models.CASCADE)
     date = models.DateField(default=timezone.now)
+    invoice = models.ForeignKey(
+        'core.CustomerInvoice',
+        related_name='payments_from_portal',   # << unique name (change as you like)
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+    )
     amount = models.DecimalField(max_digits=18, decimal_places=2)
     account = models.ForeignKey('core.Account', on_delete=models.PROTECT)  # Cash/Bank account used
     method = models.CharField(max_length=32, choices=PAYMENT_METHODS, default='bank')
@@ -586,6 +588,18 @@ class PurchaseOrder(models.Model):
         self.tax_total = tax.quantize(Decimal('0.01'))
         self.grand_total = grand.quantize(Decimal('0.01'))
         self.save(update_fields=["untaxed_total", "tax_total", "grand_total"])
+
+    @property
+    def untaxed_amount(self):
+        return (self.qty or Decimal('0.00')) * (self.unit_price or Decimal('0.00'))
+
+    @property
+    def tax_amount(self):
+        return (self.untaxed_amount * (self.tax_percent or Decimal('0.00')) / Decimal('100.00'))
+
+    @property
+    def line_total(self):
+        return self.untaxed_amount + self.tax_amount
 
 
 class PurchaseOrderLine(models.Model):

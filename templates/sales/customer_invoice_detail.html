@@ -1,35 +1,347 @@
 {% extends "base.html" %}
-{% block content %}
-<div class="container">
-    <h2>Customer Invoice {{ invoice.number }}</h2>
-    <p>Reference: {{ invoice.reference }}</p>
-    <p>Issue Date: {{ invoice.issue_date }}</p>
-    <p>Due Date: {{ invoice.due_date }}</p>
-    <p>Status: {{ invoice.get_status_display }}</p>
-    
+{% load static %}
 
-  <h4>Lines</h4>
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Product</th>
-        <th>Qty</th>
-        <th>Unit Price</th>
-        <th>Tax %</th>
-        <th>Line Total</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for line in invoice.lines.all %}
-      <tr>
-        <td>{{ line.product }}</td>
-        <td>{{ line.qty }}</td>
-        <td>{{ line.unit_price }}</td>
-        <td>{{ line.tax_percent }}</td>
-        <td>{{ line.line_total }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+{% block content %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Customer Invoice Details</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --card:#ffffff;
+      --accent:#ef4444;
+      --circle:#f05252;
+      --muted:#475569;
+      --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+      --success:#10b981;
+      --warning:#f59e0b;
+      --info:#3b82f6;
+      --danger:#ef4444;
+      --draft:#94a3b8;
+      --confirmed:#10b981;
+      --paid:#3b82f6;
+      --overdue:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:40px;
+    }
+    .frame{
+      width:95%;
+      max-width:1000px;
+      background:var(--card);
+      border-radius:24px;
+      padding:34px 48px;
+      box-shadow: var(--soft-shadow);
+      position:relative;
+      overflow:hidden;
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:32px;
+      padding-bottom:20px;
+      border-bottom:2px solid #f1f5f9;
+    }
+    .nav-links{
+      display:flex;
+      gap:24px;
+    }
+    .nav-links a{
+      color:var(--muted);
+      text-decoration:none;
+      font-weight:500;
+      padding:8px 16px;
+      border-radius:8px;
+      transition:all 0.2s;
+    }
+    .nav-links a:hover{
+      background:#f8fafc;
+      color:var(--accent);
+    }
+    .main-title{
+      font-size:2.2rem;
+      font-weight:800;
+      color:#1e293b;
+      margin:0 0 8px 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle{
+      color:var(--muted);
+      font-size:1.1rem;
+      margin:0 0 32px 0;
+    }
+    .invoice-header{
+      background:#f8fafc;
+      padding:24px;
+      border-radius:16px;
+      margin-bottom:32px;
+    }
+    .section-title{
+      font-size:1.3rem;
+      font-weight:700;
+      color:#1e293b;
+      margin:0 0 20px 0;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .section-icon{
+      width:32px;
+      height:32px;
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:white;
+      font-size:1.2rem;
+    }
+    .info-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:20px;
+    }
+    .info-item{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .info-item.full-width{
+      grid-column:1 / -1;
+    }
+    .info-label{
+      font-weight:600;
+      color:var(--muted);
+      font-size:0.9rem;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    .info-value{
+      font-size:1.1rem;
+      font-weight:600;
+      color:#1e293b;
+    }
+    .invoice-number{
+      font-family:monospace;
+      background:#e0f2fe;
+      color:#0369a1;
+      padding:4px 8px;
+      border-radius:6px;
+      font-size:1rem;
+    }
+    .invoice-reference{
+      color:var(--muted);
+      font-style:italic;
+      font-size:1rem;
+    }
+    .invoice-date{
+      color:#374151;
+      font-size:1rem;
+    }
+    .status-badge{
+      padding:6px 12px;
+      border-radius:20px;
+      font-size:0.85rem;
+      font-weight:600;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    .status-draft{background:#f1f5f9;color:var(--draft)}
+    .status-confirmed{background:#d1fae5;color:var(--confirmed)}
+    .status-paid{background:#dbeafe;color:var(--paid)}
+    .status-overdue{background:#fee2e2;color:var(--overdue)}
+    .lines-section{
+      background:white;
+      border-radius:16px;
+      padding:24px;
+      margin-bottom:32px;
+      border:2px solid #f1f5f9;
+    }
+    .lines-table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0 4px;
+      margin-top:16px;
+    }
+    .lines-table thead th{
+      background:#f8fafc;
+      color:var(--muted);
+      font-weight:600;
+      padding:12px 16px;
+      text-align:left;
+      border:none;
+      font-size:0.85rem;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+      white-space:nowrap;
+    }
+    .lines-table thead th:first-child{border-radius:8px 0 0 8px}
+    .lines-table thead th:last-child{border-radius:0 8px 8px 0}
+    .lines-table thead th.text-right{text-align:right}
+    .lines-table tbody tr{
+      background:white;
+      transition:all 0.2s;
+    }
+    .lines-table tbody tr:hover{
+      background:#f8fafc;
+    }
+    .lines-table tbody td{
+      padding:12px 16px;
+      border:none;
+      vertical-align:middle;
+    }
+    .lines-table tbody td:first-child{
+      border-radius:8px 0 0 8px;
+      font-weight:600;
+      color:#1e293b;
+    }
+    .lines-table tbody td:last-child{border-radius:0 8px 8px 0}
+    .lines-table tbody td.text-right{text-align:right}
+    .product-name{
+      font-weight:600;
+      color:#1e293b;
+      font-size:0.95rem;
+    }
+    .quantity{
+      color:var(--muted);
+      font-weight:500;
+    }
+    .price{
+      color:#374151;
+      font-weight:500;
+    }
+    .tax-percent{
+      color:#f59e0b;
+      font-weight:600;
+    }
+    .line-total{
+      color:#059669;
+      font-weight:700;
+      font-size:1rem;
+    }
+    @media (max-width:768px){
+      body{padding:20px}
+      .frame{padding:24px}
+      .main-title{font-size:1.8rem}
+      .info-grid{grid-template-columns:1fr;gap:16px}
+      .lines-table{font-size:0.85rem}
+      .lines-table thead th, .lines-table tbody td{padding:8px 12px}
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div class="nav-links">
+        <a href="{% url 'customer_invoices_list' %}">← Invoices</a>
+        <a href="{% url 'dashboard' %}">Dashboard</a>
+      </div>
+    </div>
+
+    <h1 class="main-title">Customer Invoice Details</h1>
+    <p class="subtitle">View detailed customer invoice information and line items</p>
+
+    <div class="invoice-header">
+      <div class="section-title">
+        <div class="section-icon">📄</div>
+        Invoice Information
+      </div>
+      
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Invoice Number</div>
+          <div class="info-value">
+            <span class="invoice-number">{{ invoice.number }}</span>
+          </div>
+        </div>
+        
+        <div class="info-item">
+          <div class="info-label">Reference</div>
+          <div class="info-value">
+            <span class="invoice-reference">{{ invoice.reference|default:"No reference" }}</span>
+          </div>
+        </div>
+        
+        <div class="info-item">
+          <div class="info-label">Issue Date</div>
+          <div class="info-value">
+            <span class="invoice-date">{{ invoice.issue_date|date:"M d, Y" }}</span>
+          </div>
+        </div>
+        
+        <div class="info-item">
+          <div class="info-label">Due Date</div>
+          <div class="info-value">
+            <span class="invoice-date">{{ invoice.due_date|date:"M d, Y" }}</span>
+          </div>
+        </div>
+        
+        <div class="info-item full-width">
+          <div class="info-label">Status</div>
+          <div class="info-value">
+            <span class="status-badge status-{{ invoice.status|lower }}">
+              {{ invoice.get_status_display }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="lines-section">
+      <div class="section-title">
+        <div class="section-icon">📦</div>
+        Invoice Lines
+      </div>
+      
+      <table class="lines-table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th class="text-right">Qty</th>
+            <th class="text-right">Unit Price</th>
+            <th class="text-right">Tax %</th>
+            <th class="text-right">Line Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in invoice.lines.all %}
+          <tr>
+            <td>
+              <div class="product-name">{{ line.product }}</div>
+            </td>
+            <td class="text-right">
+              <div class="quantity">{{ line.qty }}</div>
+            </td>
+            <td class="text-right">
+              <div class="price">₹{{ line.unit_price|floatformat:2 }}</div>
+            </td>
+            <td class="text-right">
+              <div class="tax-percent">{{ line.tax_percent }}%</div>
+            </td>
+            <td class="text-right">
+              <div class="line-total">₹{{ line.line_total|floatformat:2 }}</div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>
 {% endblock %}

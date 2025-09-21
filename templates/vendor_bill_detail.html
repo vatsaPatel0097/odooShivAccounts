@@ -1,22 +1,318 @@
-{% extends 'base.html' %}
-{% block content %}
-<h3>Confirm Bill {{ bill.pk }}</h3>
-<p>Vendor: {{ bill.vendor }}</p>
-<p>Date: {{ bill.bill_date }}</p>
-<p>Total: 
-  {% with net=0 tax=0 %}
-    {% for L in bill.lines.all %}
-      {% with net=net|add:L.unit_price|floatformat:2 %}{% endwith %}
-    {% endfor %}
-  {% endwith %}
-</p>
+  {% extends 'base.html' %}
+  {% load static %}
 
-<form method="post" action="{% url 'vendor_bill_confirm' bill.id %}">
-    {% csrf_token %}
-    <button class="btn btn-danger">Confirm & Post Journal</button>
-    <a class="btn btn-secondary" href="{% url 'vendor_bills_list' %}">Cancel</a>
-  </form>
-  <a href="{% url 'vendor_bill_payment' bill.pk %}" class="btn btn-primary">Pay</a>
+  {% block content %}
+  <!doctype html>
+  <html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Vendor Bill Details</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      :root{
+        --card:#ffffff;
+        --accent:#ef4444;
+        --circle:#f05252;
+        --muted:#475569;
+        --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+        --success:#10b981;
+        --warning:#f59e0b;
+        --info:#3b82f6;
+        --danger:#ef4444;
+      }
+      *{box-sizing:border-box}
+      body{
+        margin:0;
+        min-height:100vh;
+        font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+        background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:40px;
+      }
+      .frame{
+        width:95%;
+        max-width:800px;
+        background:var(--card);
+        border-radius:24px;
+        padding:34px 48px;
+        box-shadow: var(--soft-shadow);
+        position:relative;
+        overflow:hidden;
+      }
+      .topbar{
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        margin-bottom:32px;
+        padding-bottom:20px;
+        border-bottom:2px solid #f1f5f9;
+      }
+      .nav-links{
+        display:flex;
+        gap:24px;
+      }
+      .nav-links a{
+        color:var(--muted);
+        text-decoration:none;
+        font-weight:500;
+        padding:8px 16px;
+        border-radius:8px;
+        transition:all 0.2s;
+      }
+      .nav-links a:hover{
+        background:#f8fafc;
+        color:var(--accent);
+      }
+      .main-title{
+        font-size:2.2rem;
+        font-weight:800;
+        color:#1e293b;
+        margin:0 0 8px 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .subtitle{
+        color:var(--muted);
+        font-size:1.1rem;
+        margin:0 0 32px 0;
+      }
+      .bill-info{
+        background:#f8fafc;
+        padding:24px;
+        border-radius:16px;
+        margin-bottom:32px;
+      }
+      .section-title{
+        font-size:1.3rem;
+        font-weight:700;
+        color:#1e293b;
+        margin:0 0 20px 0;
+        display:flex;
+        align-items:center;
+        gap:12px;
+      }
+      .section-icon{
+        width:32px;
+        height:32px;
+        background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius:8px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        color:white;
+        font-size:1.2rem;
+      }
+      .info-grid{
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:20px;
+      }
+      .info-item{
+        display:flex;
+        flex-direction:column;
+        gap:6px;
+      }
+      .info-item.full-width{
+        grid-column:1 / -1;
+      }
+      .info-label{
+        font-weight:600;
+        color:var(--muted);
+        font-size:0.9rem;
+        text-transform:uppercase;
+        letter-spacing:0.5px;
+      }
+      .info-value{
+        font-size:1.1rem;
+        font-weight:600;
+        color:#1e293b;
+      }
+      .bill-id{
+        font-family:monospace;
+        background:#e0f2fe;
+        color:#0369a1;
+        padding:4px 8px;
+        border-radius:6px;
+        font-size:1rem;
+      }
+      .vendor-name{
+        color:#059669;
+        font-size:1.2rem;
+      }
+      .bill-total{
+        color:#dc2626;
+        font-size:1.3rem;
+        font-weight:700;
+      }
+      .actions-section{
+        background:white;
+        border:2px solid #f1f5f9;
+        border-radius:16px;
+        padding:24px;
+        margin-top:24px;
+      }
+      .form-actions{
+        display:flex;
+        gap:16px;
+        justify-content:center;
+        flex-wrap:wrap;
+      }
+      .btn{
+        padding:14px 28px;
+        border-radius:12px;
+        font-weight:600;
+        font-size:1rem;
+        text-decoration:none;
+        border:none;
+        cursor:pointer;
+        transition:all 0.2s;
+        display:inline-flex;
+        align-items:center;
+        gap:8px;
+      }
+      .btn-danger{
+        background:linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        color:white;
+      }
+      .btn-danger:hover{
+        transform:translateY(-2px);
+        box-shadow:0 8px 25px rgba(239,68,68,0.3);
+      }
+      .btn-primary{
+        background:linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color:white;
+      }
+      .btn-primary:hover{
+        transform:translateY(-2px);
+        box-shadow:0 8px 25px rgba(59,130,246,0.3);
+        color:white;
+      }
+      .btn-secondary{
+        background:#f1f5f9;
+        color:var(--muted);
+      }
+      .btn-secondary:hover{
+        background:#e2e8f0;
+        transform:translateY(-1px);
+        color:var(--muted);
+      }
+      .payment-action{
+        margin-top:20px;
+        text-align:center;
+        padding-top:20px;
+        border-top:1px solid #f1f5f9;
+      }
+      @media (max-width:768px){
+        body{padding:20px}
+        .frame{padding:24px}
+        .main-title{font-size:1.8rem}
+        .info-grid{grid-template-columns:1fr;gap:16px}
+        .form-actions{flex-direction:column}
+        .btn{justify-content:center}
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="topbar">
+        <div class="nav-links">
+          <a href="{% url 'vendor_bills_list' %}">← Vendor Bills</a>
+          <a href="{% url 'dashboard' %}">Dashboard</a>
+        </div>
+      </div>
 
+      <h1 class="main-title">Vendor Bill Details</h1>
+      <p class="subtitle">Review and confirm vendor bill information</p>
+
+      <div class="bill-info">
+        <div class="section-title">
+          <div class="section-icon">📄</div>
+          Bill Information
+        </div>
+        
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">Bill ID</div>
+            <div class="info-value">
+              <span class="bill-id">BILL/{{ bill.pk }}</span>
+            </div>
+          </div>
+          
+          <div class="info-item">
+            <div class="info-label">Bill Date</div>
+            <div class="info-value">{{ bill.bill_date|date:"M d, Y" }}</div>
+          </div>
+          
+          <div class="info-item full-width">
+            <div class="info-label">Vendor</div>
+            <div class="info-value vendor-name">{{ bill.vendor }}</div>
+          </div>
+          
+          <div class="info-item full-width">
+            <div class="info-label">Total Amount</div>
+            <div class="info-value bill-total">
+              ₹{{ total_bill|floatformat:2 }}
+            </div>
+          </div>
+          
+          <div class="info-item full-width" style="margin-top:8px;">
+            <div class="info-label">Paid</div>
+            <div class="info-value">₹{{ paid_amount|floatformat:2 }}</div>
+          </div>
+          
+          <div class="info-item full-width" style="margin-top:8px;">
+            <div class="info-label">Outstanding</div>
+            <div class="info-value" style="{% if outstanding > 0 %}color:var(--danger);{% else %}color:var(--success);{% endif %}">
+              ₹{{ outstanding|floatformat:2 }}
+            </div>
+          </div>
+          
+      </div>
+
+      <div class="actions-section">
+        <div class="section-title">
+          <div class="section-icon">⚡</div>
+          Actions
+        </div>
+        
+        {% if bill.status == "draft" %}
+    <form method="post" action="{% url 'vendor_bill_confirm' bill.id %}">
+      {% csrf_token %}
+      <div class="form-actions">
+        <!-- <button class="btn btn-danger" type="submit">
+          <span>✓</span> Confirm & Post Journal
+        </button> -->
+        <a class="btn btn-secondary" href="{% url 'vendor_bills_list' %}">
+          <span>✕</span> Cancel
+        </a>
+      </div>
+    </form>
+  {% else %}
+    <div style="text-align:center; color:green; font-weight:600; padding:12px;">
+      ✅ Bill Confirmed (Journal Posted)
+    </div>
+  {% endif %}
+
+        
+  <div class="payment-action">
+    {% if not is_paid %}
+      <a href="{% url 'vendor_bill_payment' bill.pk %}" class="btn btn-primary">
+        <span>💳</span> Make Payment
+      </a>
+    {% else %}
+      <div style="text-align:center; color:var(--success); font-weight:700;">
+        ✅ Bill fully paid (₹{{ paid_amount|floatformat:2 }})
+      </div>
+    {% endif %}
+  </div>
   
-{% endblock %}
+      </div>
+    </div>
+  </body>
+  </html>
+  {% endblock %}

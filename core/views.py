@@ -930,8 +930,28 @@ def vendor_bill_confirm_view(request, pk):
 
 @require_login
 def vendor_bills_list(request):
-    bills = VendorBill.objects.order_by('-created_at')
+    bills = VendorBill.objects.order_by('pk')
     return render(request, 'vendor_bill_list.html', {'bills': bills})
+# core/views.py
+# from django.db.models import Sum
+# from django.db.models.functions import Coalesce
+# from django.shortcuts import render
+# from .models import VendorBill
+
+# def vendor_bills_list(request):
+#     # adjust the filter/order as you already have
+#     bills_qs = VendorBill.objects.all().order_by('-bill_date')
+
+#     # annotate each bill with total_amount as sum of related lines' line_total (or 0)
+#     bills = bills_qs.annotate(
+#         total_amount=Coalesce(Sum('lines__line_total'), 0)
+#     )
+
+#     context = {
+#         'bills': bills,
+#     }
+#     return render(request, 'sales/vendor_bills.html', context)
+
 
 @require_login
 def vendor_bill_add(request):
@@ -969,10 +989,36 @@ def vendor_bill_add(request):
         return redirect('vendor_bills_list')
     return render(request, 'vendor_bill_add.html', {'contacts': contacts, 'products': products})
 
-@require_login
 def vendor_bill_detail(request, pk):
     bill = get_object_or_404(VendorBill, pk=pk)
-    return render(request, 'vendor_bill_detail.html', {'bill': bill})
+
+    # robustly get the related lines queryset (works whether you used 'lines' related_name or default)
+    lines_qs = getattr(bill, 'lines', None) or getattr(bill, 'vendorbillline_set')
+
+    # compute total from lines (preferred), fallback to bill stored field if exists
+    total = Decimal('0.00')
+    if lines_qs is not None:
+        total = lines_qs.aggregate(total=Sum('line_total'))['total'] or Decimal('0.00')
+    else:
+        # fallback to possible fields on bill
+        total = Decimal(str(getattr(bill, 'total_amount', None) or getattr(bill, 'grand_total', None) or 0))
+
+    # sum of payments made against this bill
+    paid = bill.payments.aggregate(paid=Sum('amount'))['paid'] or Decimal('0.00')
+
+    # outstanding (zero or negative means fully paid)
+    outstanding = (Decimal(total) - Decimal(paid)).quantize(Decimal('0.01'))
+    is_paid = (outstanding <= Decimal('0.00'))
+
+    ctx = {
+        'bill': bill,
+        'total_bill': total,
+        'paid_amount': paid,
+        'outstanding': outstanding,
+        'is_paid': is_paid,
+    }
+    return render(request, 'vendor_bill_detail.html', ctx)
+
 
 @require_login
 def vendor_bill_confirm_view(request, pk):
@@ -1154,18 +1200,13 @@ def vendor_bill_confirm_view(request, pk):
 
 @transaction.atomic
 def vendor_bill_confirm(request, pk):
-    """
-    Confirm a vendor bill and post journal entries.
-    Ensures JE.created_by is set from request (or fallback) and sets bill.status='confirmed'.
-    """
     bill = get_object_or_404(VendorBill, pk=pk)
 
-    # Prevent double-posting
+    # Prevent double posting
     if getattr(bill, 'journal_entry', None):
         messages.info(request, "This bill already has a journal posted.")
         return redirect('vendor_bill_detail', pk=bill.pk)
 
-    # helper: safe Decimal conversion
     def to_decimal(v):
         if v is None:
             return Decimal('0.00')
@@ -1176,46 +1217,28 @@ def vendor_bill_confirm(request, pk):
         except (InvalidOperation, TypeError, ValueError):
             return Decimal('0.00')
 
-    # Compute totals: try common fields, else sum lines
-    untaxed = Decimal('0.00')
-    tax_total = Decimal('0.00')
-    total = Decimal('0.00')
-
-    possible_untaxed_fields = ['total_untaxed', 'amount_untaxed', 'untaxed', 'untaxed_amount', 'net_total']
-    possible_tax_fields = ['total_tax', 'tax_total', 'amount_tax', 'tax']
-    possible_total_fields = ['total', 'amount_total', 'grand_total', 'total_amount', 'line_total']
-
-    for f in possible_untaxed_fields:
-        if hasattr(bill, f):
-            untaxed = to_decimal(getattr(bill, f))
-            break
-    for f in possible_tax_fields:
-        if hasattr(bill, f):
-            tax_total = to_decimal(getattr(bill, f))
-            break
-    for f in possible_total_fields:
-        if hasattr(bill, f):
-            total = to_decimal(getattr(bill, f))
-            break
-
-    if untaxed == 0 and tax_total == 0 and total == 0:
-        lines_qs = getattr(bill, 'lines', None) or getattr(bill, 'vendorbillline_set', None)
-        if lines_qs is not None:
-            s_untaxed = Decimal('0.00')
-            s_tax = Decimal('0.00')
-            for ln in lines_qs.all():
-                net = to_decimal(getattr(ln, 'unit_price', 0)) * to_decimal(getattr(ln, 'qty', 0))
-                s_untaxed += net
-                s_tax += to_decimal(getattr(ln, 'tax_amount', 0))
-            untaxed = s_untaxed
-            tax_total = s_tax
-            total = untaxed + tax_total
-
-    if total == 0:
-        messages.error(request, "Bill total is zero or unknown — cannot post empty journal.")
+    # compute totals from lines (most reliable)
+    lines_qs = getattr(bill, 'lines', None) or getattr(bill, 'vendorbillline_set', None)
+    if not lines_qs or not lines_qs.exists():
+        messages.error(request, "Bill has no lines to post.")
         return redirect('vendor_bill_detail', pk=bill.pk)
 
-    # Robust account selection
+    untaxed = Decimal('0.00')
+    tax_total = Decimal('0.00')
+    for ln in lines_qs.all():
+        ln_qty = to_decimal(getattr(ln, 'qty', 0))
+        ln_price = to_decimal(getattr(ln, 'unit_price', 0))
+        untaxed += (ln_qty * ln_price)
+        tax_total += to_decimal(getattr(ln, 'tax_amount', 0))
+
+    total = untaxed + tax_total
+    print(f"[vendor_bill_confirm] bill={bill.pk} totals -> untaxed:{untaxed} tax:{tax_total} total:{total}")
+
+    if total == 0:
+        messages.error(request, "Bill total is zero; cannot post journal.")
+        return redirect('vendor_bill_detail', pk=bill.pk)
+
+    # pick accounts
     def get_by_name_or_type(names, fallback_type=None):
         for n in names:
             try:
@@ -1223,91 +1246,72 @@ def vendor_bill_confirm(request, pk):
             except Account.DoesNotExist:
                 continue
         if fallback_type:
-            return Account.objects.filter(account_type=fallback_type).first()
+            return Account.objects.filter(account_type__iexact=fallback_type).first()
         return None
 
-    purchase_account = get_by_name_or_type(['Purchase Expense A/c', 'Purchase Expense', 'Purchase'], fallback_type='expense')
-    creditor_account = get_by_name_or_type(['Creditors A/c', 'Creditors', 'Creditor'], fallback_type='liability')
+    purchase_account = get_by_name_or_type(['Purchase Expense A/c','Purchase Expense','Purchase'], fallback_type='expense')
+    creditor_account = get_by_name_or_type(['Creditors A/c','Creditors','Creditor'], fallback_type='liability')
     tax_account = Account.objects.filter(name__icontains='tax').first() or Account.objects.filter(name__icontains='gst').first()
+    print("[vendor_bill_confirm] accounts:", purchase_account, tax_account, creditor_account)
 
     if not purchase_account or not creditor_account:
-        messages.error(request, "Configure Expense and Liability accounts before confirming bills.")
+        messages.error(request, "Configure Purchase Expense and Creditors accounts first.")
         return redirect('vendor_bill_detail', pk=bill.pk)
 
-    # Who created this JE? prefer request user username; else bill.created_by or 'system'
-    created_by = None
-    try:
-        user = getattr(request, 'user', None)
-        if user and getattr(user, 'is_authenticated', False):
-            created_by = getattr(user, 'username', None) or str(user)
-    except Exception:
-        created_by = None
+    # Who created JE
+    created_by = getattr(request, 'user', None) and getattr(request.user, 'username', None) or getattr(bill, 'created_by', None) or 'system'
 
-    if not created_by:
-        created_by = getattr(bill, 'created_by', None) or 'system'
-
-    # Create JE and link to bill (content type)
+    # create JE and lines atomically
     bill_ct = ContentType.objects.get_for_model(bill.__class__)
     je = JournalEntry.objects.create(
-        date=getattr(bill, 'bill_date', getattr(bill, 'date', timezone.now().date())),
-        narration=f"Bill {bill.pk} - {getattr(bill, 'vendor', '')}",
+        date=getattr(bill, 'bill_date', timezone.now().date()),
         ref=f"Bill/{bill.pk}",
+        narration=f"Bill {bill.pk} vendor:{bill.vendor}",
         content_type=bill_ct,
         object_id=bill.pk,
         created_by=created_by,
     )
 
-    # helper to write journal lines (also sets partner_content_type/object_id if partner provided)
-    def make_line(account, debit_amt=Decimal('0.00'), credit_amt=Decimal('0.00'), narration='', partner_obj=None):
+    created_lines = []
+
+    def make_line(account, debit_amt=Decimal('0.00'), credit_amt=Decimal('0.00'), narration=''):
         debit_amt = to_decimal(debit_amt)
         credit_amt = to_decimal(credit_amt)
         if debit_amt == 0 and credit_amt == 0:
             return None
-        kwargs = dict(
-            entry=je,
-            account=account,
-            debit=debit_amt,
-            credit=credit_amt,
-            narration=narration,
-            date=je.date,
-        )
-        if partner_obj is not None:
-            p_ct = ContentType.objects.get_for_model(partner_obj.__class__)
-            kwargs['partner_content_type'] = p_ct
-            kwargs['partner_object_id'] = getattr(partner_obj, 'pk', None)
-        return JournalLine.objects.create(**kwargs)
+        jl = JournalLine.objects.create(entry=je, account=account, debit=debit_amt, credit=credit_amt, narration=narration, date=je.date)
+        created_lines.append(jl)
+        return jl
 
-    # Create lines: debit purchase, debit tax (if separate or add to purchase), credit creditors
     if untaxed > 0:
-        make_line(purchase_account, debit_amt=untaxed, narration="Purchase (untaxed)", partner_obj=bill.vendor)
-
+        make_line(purchase_account, debit_amt=untaxed, narration="Purchase (untaxed)")
     if tax_total > 0:
         if tax_account:
-            make_line(tax_account, debit_amt=tax_total, narration="Tax", partner_obj=bill.vendor)
+            make_line(tax_account, debit_amt=tax_total, narration="Input Tax")
         else:
-            # add to purchase if no tax account
-            make_line(purchase_account, debit_amt=tax_total, narration="Tax (added to purchase account)", partner_obj=bill.vendor)
+            make_line(purchase_account, debit_amt=tax_total, narration="Tax added to purchase")
+    make_line(creditor_account, credit_amt=total, narration=f"Payable to {bill.vendor}")
 
-    make_line(creditor_account, credit_amt=total, narration=f"Creditor: {getattr(bill, 'vendor', '')}", partner_obj=bill.vendor)
+    total_debits = sum((to_decimal(l.debit) for l in created_lines), Decimal('0.00'))
+    total_credits = sum((to_decimal(l.credit) for l in created_lines), Decimal('0.00'))
 
-    # sanity check: balanced JE
-    total_debits = sum([to_decimal(l.debit) for l in je.lines.all()])
-    total_credits = sum([to_decimal(l.credit) for l in je.lines.all()])
+    print(f"[vendor_bill_confirm] created {len(created_lines)} lines debits={total_debits} credits={total_credits}")
     if total_debits != total_credits:
-        # rollback
+        # this will rollback the transaction because of atomic decorator
         raise ValueError(f"Unbalanced journal (debits {total_debits} != credits {total_credits}).")
 
-    # Link JE to bill and mark confirmed (use your model's STATUS constant if present)
+    # link JE to bill and then mark confirmed
     bill.journal_entry = je
     if hasattr(bill, 'status'):
-        # prefer using the model constant if defined (e.g., VendorBill.CONFIRMED)
-        confirmed_val = getattr(VendorBill, 'CONFIRMED', 'confirmed')
-        bill.status = confirmed_val
+        try:
+            bill.status = VendorBill.CONFIRMED
+        except Exception:
+            bill.status = 'confirmed'
         bill.save(update_fields=['journal_entry', 'status'])
     else:
         bill.save(update_fields=['journal_entry'])
 
-    messages.success(request, f"Vendor bill confirmed and journal entry #{je.id} created by {created_by}.")
+    messages.success(request, f"Bill {bill.pk} confirmed and JE {je.id} posted.")
     return redirect('vendor_bill_detail', pk=bill.pk)
 
 @require_login
@@ -2245,8 +2249,9 @@ def portal_payment_callback(request, payment_id):
         return redirect(reverse('core:customer_portal_invoice_detail', args=[p.bill.pk]))
     return redirect(reverse('core:customer_portal_invoices'))
 
+@transaction.atomic
 def customer_portal_pay(request, invoice_id):
-    # require portal contact in session
+    # require portal customer session
     contact_id = request.session.get('customer_id')
     if not contact_id:
         return redirect('customer_login')
@@ -2254,75 +2259,89 @@ def customer_portal_pay(request, invoice_id):
     contact = get_object_or_404(Contact, pk=contact_id)
     invoice = get_object_or_404(CustomerInvoice, pk=invoice_id)
 
-    # Ensure invoice belongs to this contact
+    # ensure ownership
     if invoice.customer_id != contact.pk:
         return HttpResponseForbidden("You may only pay your own invoices.")
 
-    # compute invoice total (sum of lines) and paid so far
-    total_amount = Decimal('0.00')
-    for L in invoice.lines.all():
-        # prefer a stored line_total, else try qty*unit_price
-        lt = getattr(L, 'line_total', None)
-        if lt is None:
-            try:
-                lt = (Decimal(getattr(L, 'qty', 0) or 0) * Decimal(getattr(L, 'unit_price', 0) or 0))
-            except Exception:
-                lt = Decimal('0.00')
-        total_amount += Decimal(lt or 0)
-
+    # compute totals
+    total_amount = invoice.lines.aggregate(total=Sum('line_total'))['total'] or Decimal('0.00')
     paid = invoice.payments.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-    amount_due = (total_amount - Decimal(paid)).quantize(Decimal('0.01'))
+    amount_due = (Decimal(total_amount) - Decimal(paid)).quantize(Decimal('0.01'))
 
     if request.method == 'POST':
-        # read posted amount; default to full due
+        # parse/validate amount
         amount_raw = request.POST.get('amount') or ''
-        try:
-            amount = Decimal(amount_raw)
-        except Exception:
-            messages.error(request, "Invalid amount.")
-            return redirect('customer_portal_pay', invoice_id=invoice.pk)
-
-        if amount <= 0:
-            messages.error(request, "Amount must be positive.")
+        amount = _to_decimal(amount_raw)
+        if amount <= Decimal('0.00'):
+            messages.error(request, "Enter a valid payment amount.")
             return redirect('customer_portal_pay', invoice_id=invoice.pk)
         if amount > amount_due:
             messages.error(request, "Amount exceeds amount due.")
             return redirect('customer_portal_pay', invoice_id=invoice.pk)
 
-        # find default asset account (Cash/Bank). Adjust logic to choose the correct account.
-        account = Account.objects.filter(account_type__iexact='asset').first()
-        if not account:
-            messages.error(request, "No asset account configured (Cash/Bank). Contact admin.")
-            return redirect('customer_portal_pay', invoice_id=invoice.pk)
+        # determine account: prefer account_id form field, else choose first asset account
+        account_id = request.POST.get('account_id') or request.POST.get('account')
+        account = None
+        if account_id:
+            try:
+                account = Account.objects.get(pk=int(account_id))
+            except (ValueError, Account.DoesNotExist):
+                messages.error(request, "Selected account not found.")
+                return redirect('customer_portal_pay', invoice_id=invoice.pk)
+        else:
+            account = Account.objects.filter(account_type__iexact='asset').first()
+            if not account:
+                messages.error(request, "No asset (bank/cash) account configured. Contact admin.")
+                return redirect('customer_portal_pay', invoice_id=invoice.pk)
 
-        # Create Payment record. Adjust fields to match your Payment model.
-        pay = Payment.objects.create(
-            # if your Payment uses 'invoice' FK name; if you use 'bill' adapt accordingly
-            invoice=invoice,            # if your Payment model has a different FK name, update
-            date = timezone.now().date(),
-            amount = amount,
-            account = account,
-            method = request.POST.get('method','bank'),
-            reference = request.POST.get('reference',''),
-            created_by = contact.name if getattr(contact,'name',None) else str(contact.pk),
-        )
-
-        # Call .post() to create journal entry and link it — ensure your Payment.post supports invoices.
+        # create CustomerPayment (NOT vendor Payment)
         try:
-            je = pay.post()   # If your Payment.post is only for VendorBill, adapt a 'post_customer_payment' variant
+            cp = CustomerPayment.objects.create(
+                invoice = invoice,
+                date = timezone.now().date(),
+                amount = amount,
+                account = account,
+                method = request.POST.get('method','bank'),
+                reference = request.POST.get('reference',''),
+                created_by = getattr(contact, 'name', None) or str(contact.pk),
+            )
         except Exception as e:
-            # If post() raises, delete payment or keep it for debugging
-            pay.delete()
-            messages.error(request, f"Payment failed: {e}")
+            logger.exception("Failed to create CustomerPayment for invoice %s: %s", invoice.pk, e)
+            messages.error(request, f"Failed to record payment: {e}")
             return redirect('customer_portal_pay', invoice_id=invoice.pk)
 
-        messages.success(request, "Payment recorded. Thank you.")
-        return redirect('customer_portal_invoices')
+        # attempt to post (create JE) and link
+        try:
+            je = cp.post()
+        except Exception as e:
+            # don't delete payment; keep record for debugging and inform admin
+            logger.exception("CustomerPayment.post() failed for payment id=%s invoice=%s", getattr(cp,'pk',None), invoice.pk)
+            messages.error(request, f"Payment recorded but posting failed: {e}. Admin, check logs.")
+            return redirect('customer_portal_invoices')
+
+
+        # refresh paid/outstanding after post
+        paid = invoice.payments.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        amount_due = (Decimal(total_amount) - Decimal(paid)).quantize(Decimal('0.01'))
+
+        # if fully paid, mark invoice paid (use constant if present)
+        try:
+            if hasattr(CustomerInvoice, 'PAID'):
+                invoice.status = getattr(CustomerInvoice, 'PAID')
+            else:
+                # If your app doesn't have PAID, optionally set CONFIRMED or custom state
+                if hasattr(CustomerInvoice, 'CONFIRMED'):
+                    invoice.status = getattr(CustomerInvoice, 'CONFIRMED')
+            invoice.save(update_fields=['status'])
+        except Exception:
+            # safe-fail: we don't want to break payment flow
+            logger.exception("Failed to update invoice status after payment for invoice %s", invoice.pk)
+
+        messages.success(request, f"Payment of ₹{amount} recorded. Thank you!")
+        return redirect('customer_portal_invoice_detail', pk=invoice.pk)
 
     # GET -> render the pay form
-    # list of possible accounts (cash/bank) to let user choose; adjust as needed
     asset_accounts = Account.objects.filter(account_type__iexact='asset').order_by('name')
-
     ctx = {
         'contact': contact,
         'invoice': invoice,
@@ -2332,6 +2351,13 @@ def customer_portal_pay(request, invoice_id):
         'asset_accounts': asset_accounts,
     }
     return render(request, 'portal/pay.html', ctx)
+
+
+def _to_decimal(v):
+    try:
+        return Decimal(str(v))
+    except Exception:
+        return Decimal('0.00')
 
 logger = logging.getLogger(__name__)
 
@@ -2367,171 +2393,168 @@ def compute_invoice_amounts(invoice):
 
 
 # ---- Create Razorpay order and render checkout page ----
-def portal_invoice_pay_create_order(request, invoice_id):
-    """
-    Show a small page that creates a Razorpay order and launches checkout.
-    Only portal-authenticated customers should be allowed to pay their own invoices.
-    """
-    # Ensure contact/customer logged in via portal session (adapt to your portal login mechanism)
-    contact_id = request.session.get('portal_contact_id') or request.session.get('customer_id')
-    if not contact_id:
-        # redirect to portal login
-        return redirect('customer_portal_login')
+# def portal_invoice_pay_create_order(request, invoice_id):
+#     """
+#     Show a small page that creates a Razorpay order and launches checkout.
+#     Only portal-authenticated customers should be allowed to pay their own invoices.
+#     """
+#     # Ensure contact/customer logged in via portal session (adapt to your portal login mechanism)
+#     contact_id = request.session.get('portal_contact_id') or request.session.get('customer_id')
+#     if not contact_id:
+#         # redirect to portal login
+#         return redirect('customer_portal_login')
 
-    # fetch invoice and ensure ownership
-    invoice = get_object_or_404(CustomerInvoice, pk=invoice_id)  # change model name if needed
-    # Ensure invoice.customer_id matches contact (adapt attribute names)
-    if str(getattr(invoice.customer, "id", None)) != str(contact_id):
-        return HttpResponse(status=403)
+#     # fetch invoice and ensure ownership
+#     invoice = get_object_or_404(CustomerInvoice, pk=invoice_id)  # change model name if needed
+#     # Ensure invoice.customer_id matches contact (adapt attribute names)
+#     if str(getattr(invoice.customer, "id", None)) != str(contact_id):
+#         return HttpResponse(status=403)
 
-    total, paid, amount_due = compute_invoice_amounts(invoice)
-    if amount_due <= 0:
-        return HttpResponse("Invoice already paid", status=400)
+#     total, paid, amount_due = compute_invoice_amounts(invoice)
+#     if amount_due <= 0:
+#         return HttpResponse("Invoice already paid", status=400)
 
-    # amount in smallest currency unit (paise if INR)
-    # NOTE: adjust multiplier for your currency
-    currency = "INR"
-    unit_amount = int((amount_due * 100).to_integral_value())
+#     # amount in smallest currency unit (paise if INR)
+#     # NOTE: adjust multiplier for your currency
+#     currency = "INR"
+#     unit_amount = int((amount_due * 100).to_integral_value())
 
-    # Create the Razorpay order
-    razor_order = client.order.create({
-        "amount": unit_amount,
-        "currency": currency,
-        "receipt": f"INV_{invoice.pk}",
-        "notes": {
-            "invoice_id": str(invoice.pk),
-            "portal_contact_id": str(contact_id),
-        }
-    })
+#     # Create the Razorpay order
+#     razor_order = client.order.create({
+#         "amount": unit_amount,
+#         "currency": currency,
+#         "receipt": f"INV_{invoice.pk}",
+#         "notes": {
+#             "invoice_id": str(invoice.pk),
+#             "portal_contact_id": str(contact_id),
+#         }
+#     })
 
-    ctx = {
-        "invoice": invoice,
-        "amount_due": str(amount_due),     # decimal to string for JS
-        "unit_amount": unit_amount,
-        "razor_order": razor_order,
-        "razor_key_id": settings.RAZORPAY_KEY_ID,
-        "site_url": settings.SITE_URL.rstrip('/'),
-    }
-    return render(request, "portal/razorpay_checkout.html", ctx)
+#     ctx = {
+#         "invoice": invoice,
+#         "amount_due": str(amount_due),     # decimal to string for JS
+#         "unit_amount": unit_amount,
+#         "razor_order": razor_order,
+#         "razor_key_id": settings.RAZORPAY_KEY_ID,
+#         "site_url": settings.SITE_URL.rstrip('/'),
+#     }
+#     return render(request, "portal/razorpay_checkout.html", ctx)
 
 
 # ---- Client will POST to this after checkout success to verify and create Payment ----
 @csrf_exempt
 def portal_invoice_razorpay_verify(request, invoice_id):
     """
-    The client posts the razorpay_payment_id, razorpay_order_id, razorpay_signature
-    after successful checkout; we verify signature server-side and create Payment.
+    Called by client after successful checkout. Expect JSON body with:
+      { razorpay_payment_id, razorpay_order_id, razorpay_signature }
+    Returns JSON {status: 'ok'} or {status:'error', message:...}
     """
     if request.method != "POST":
-        return HttpResponseBadRequest("POST required")
+        return JsonResponse({'status': 'error', 'message': 'POST required'}, status=400)
 
+    # parse JSON body and validate
     try:
-        data = json.loads(request.body.decode())
-    except Exception:
-        return HttpResponseBadRequest("Invalid JSON")
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception as exc:
+        logger.exception("Invalid JSON in verify: %s", exc)
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
 
-    payment_id = data.get("razorpay_payment_id")
-    order_id = data.get("razorpay_order_id")
-    signature = data.get("razorpay_signature")
+    payment_id = data.get('razorpay_payment_id') or data.get('payment_id') or data.get('id')
+    order_id = data.get('razorpay_order_id') or data.get('order_id')
+    signature = data.get('razorpay_signature') or data.get('signature')
 
     if not payment_id or not order_id or not signature:
-        return HttpResponseBadRequest("Missing parameters")
+        logger.warning("Missing parameters in verify payload: %s", data)
+        return JsonResponse({'status': 'error', 'message': 'Missing required parameters'}, status=400)
 
-    # Verify signature
+    # verify signature
     try:
         client.utility.verify_payment_signature({
             "razorpay_order_id": order_id,
             "razorpay_payment_id": payment_id,
             "razorpay_signature": signature,
         })
-    except razorpay.errors.SignatureVerificationError as e:
-        logger.exception("Razorpay signature verification failed")
-        return HttpResponse(status=400)
+    except Exception as exc:
+        logger.exception("Razorpay signature verification failed for order=%s payment=%s: %s", order_id, payment_id, exc)
+        return JsonResponse({'status': 'error', 'message': 'Signature verification failed'}, status=400)
 
-    # fetch payment details from razorpay API (optional, useful to get amount actually paid)
+    # fetch payment details (optional, helpful)
     try:
         payment_obj = client.payment.fetch(payment_id)
     except Exception:
         payment_obj = None
 
-    invoice = get_object_or_404(CustomerInvoice, pk=invoice_id)
-
-    # Check idempotency: do not create duplicate local Payment for same gateway payment id
-    from core.models import Payment as LocalPayment, Account  # adapt import path if different
-    existing = LocalPayment.objects.filter(reference=payment_id).first()
-    if existing:
-        # already processed
-        return JsonResponse({"status": "ok", "detail": "already recorded"})
-
-    # Determine amount paid (use payment_obj if available)
-    if payment_obj and payment_obj.get("amount"):
-        paid_amt = Decimal(payment_obj["amount"]) / Decimal(100)
-    else:
-        # fallback: use amount_due at moment
-        _, _, amount_due = compute_invoice_amounts(invoice)
-        paid_amt = amount_due
-
-    # choose account where to deposit (Bank/Cash asset)
-    # adapt selection as needed (here choose first asset account)
-    account = Account.objects.filter(account_type__iexact="asset").first()
-
-    # create local Payment record (adapt field names if your Payment model differs)
-    pay = LocalPayment.objects.create(
-        # If your Payment model links to invoice via field 'invoice' -> use invoice=invoice
-        # In your earlier Payment model you used 'bill' field for vendor bills. For invoices you must
-        # have a field such as 'invoice' or generic 'document' - update below accordingly.
-        # I try both patterns to be more robust:
-    )
-
-    # Because Payment model may be for VendorBill (with field 'bill') the code below tries to set
-    # either `invoice` or `bill` or `customer_invoice` depending on what your model defines.
-    PaymentModel = LocalPayment  # alias
-
-    # Build kwargs so we don't crash if model doesn't have that field
-    create_kwargs = {
-        "date": timezone.now().date(),
-        "amount": paid_amt,
-        "account": account,
-        "method": "razorpay",
-        "reference": payment_id,
-        "created_by": f"portal:{request.session.get('portal_contact_id') or request.session.get('customer_id') or 'portal'}",
-    }
-
-    # pick relation field
-    if hasattr(PaymentModel, "_meta"):
-        field_names = {f.name for f in PaymentModel._meta.get_fields()}
-    else:
-        field_names = set()
-
-    if "invoice" in field_names:
-        create_kwargs["invoice"] = invoice
-    elif "customer_invoice" in field_names:
-        create_kwargs["customer_invoice"] = invoice
-    elif "bill" in field_names:
-        # fallback: if Payment model is for bills, we cannot attach invoice - create generic payment.
-        create_kwargs["bill"] = None
-    else:
-        # fallback - if Payment model can't link directly, still create with minimal fields
-        pass
-
-    pay = PaymentModel.objects.create(**create_kwargs)
-
-    # Call your existing .post() so t-accounts get created. If PaymentModel.post exists and is correct it will
-    # create JournalEntry and reduce debtors etc. Wrap in try/except to avoid webhook failing.
+    # load invoice and ensure it belongs to the logged portal user if you require that
     try:
-        if hasattr(pay, "post"):
-            pay.post()
-    except Exception as e:
-        logger.exception("Error posting payment: %s", e)
-        # still return success to client but log error for debugging
+        invoice = get_object_or_404(CustomerInvoice, pk=invoice_id)
+    except Exception:
+        logger.exception("Invoice not found: %s", invoice_id)
+        return JsonResponse({'status': 'error', 'message': 'Invoice not found'}, status=404)
 
-    # Optionally mark invoice paid if fully paid
-    total, paid_total, new_amount_due = compute_invoice_amounts(invoice)
-    if new_amount_due <= 0:
-        invoice.status = "paid"  # adjust status field values as used in your app
-        invoice.save(update_fields=["status"])
+    # compute final amount to record
+    if payment_obj and payment_obj.get('amount'):
+        paid_amt = (Decimal(payment_obj['amount']) / Decimal(100)).quantize(Decimal('0.01'))
+    else:
+        # fallback: compute current amount_due
+        total = invoice.lines.aggregate(t=Sum('line_total'))['t'] or Decimal('0.00')
+        paid = invoice.payments.aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+        paid_amt = (Decimal(total) - Decimal(paid)).quantize(Decimal('0.01'))
 
-    return JsonResponse({"status": "ok", "payment_id": payment_id})
+    # choose deposit account
+    account = Account.objects.filter(account_type__iexact='asset').first()
+    if not account:
+        logger.error("No asset account found to post payment into.")
+        return JsonResponse({'status': 'error', 'message': 'No asset account configured'}, status=500)
+
+    # idempotency: don't create duplicate local payment
+    try:
+        existing = CustomerPayment.objects.filter(reference=payment_id).first()
+        if existing:
+            logger.info("Razorpay payment %s already recorded as CustomerPayment %s", payment_id, existing.pk)
+            return JsonResponse({'status': 'ok', 'message': 'already_recorded'}, status=200)
+    except Exception:
+        # continue if model differs; we will create
+        existing = None
+
+    # create local payment
+    try:
+        cp = CustomerPayment.objects.create(
+            invoice=invoice,
+            date=timezone.now().date(),
+            amount=paid_amt,
+            account=account,
+            method='razorpay',
+            reference=payment_id,
+            created_by=f"portal:{request.session.get('customer_id') or 'portal'}",
+        )
+    except Exception as exc:
+        logger.exception("Failed creating CustomerPayment for invoice %s: %s", invoice.pk, exc)
+        return JsonResponse({'status': 'error', 'message': 'Failed to create payment record'}, status=500)
+
+    # post (create JE) - wrap in try so verify returns a success even if posting fails
+    try:
+        if hasattr(cp, 'post'):
+            cp.post()
+    except Exception as exc:
+        logger.exception("CustomerPayment.post() failed for payment %s invoice %s: %s", cp.pk, invoice.pk, exc)
+        # We successfully created CustomerPayment; return ok but warn client about posting
+        return JsonResponse({'status': 'ok', 'message': 'recorded_but_post_failed'}, status=200)
+
+    # optionally: mark invoice paid if fully paid
+    total = invoice.lines.aggregate(t=Sum('line_total'))['t'] or Decimal('0.00')
+    paid_total = invoice.payments.aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+    if (Decimal(total) - Decimal(paid_total)) <= Decimal('0.001'):
+        try:
+            if hasattr(CustomerInvoice, 'PAID'):
+                invoice.status = getattr(CustomerInvoice, 'PAID')
+            else:
+                invoice.status = getattr(CustomerInvoice, 'CONFIRMED', invoice.status)
+            invoice.save(update_fields=['status'])
+        except Exception:
+            logger.exception("Failed to update invoice status after razorpay payment")
+
+    logger.info("Recorded Razorpay payment %s for invoice %s amount %s", payment_id, invoice.pk, paid_amt)
+    return JsonResponse({'status': 'ok', 'message': 'recorded'})
 
 @csrf_exempt
 def razorpay_webhook(request):
@@ -2593,3 +2616,39 @@ def razorpay_webhook(request):
             logger.exception("Error posting payment from webhook")
 
     return HttpResponse(status=200)
+
+
+client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+
+def portal_invoice_pay_create_order(request, invoice_id):
+    contact_id = request.session.get('customer_id')
+    if not contact_id:
+        return redirect('customer_login')
+
+    invoice = get_object_or_404(CustomerInvoice, pk=invoice_id)
+    if invoice.customer_id != contact_id:
+        return HttpResponseForbidden("You may only pay your own invoices.")
+
+    # compute outstanding
+    total = invoice.lines.aggregate(t=Sum('line_total'))['t'] or Decimal('0.00')
+    paid = invoice.payments.aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+    amount_due = (total - paid).quantize(Decimal('0.01'))
+    if amount_due <= 0:
+        messages.info(request, "Invoice already paid.")
+        return redirect('customer_portal_invoices')
+
+    # Create Razorpay order
+    order = client.order.create({
+        "amount": int(amount_due * 100),   # in paise
+        "currency": "INR",
+        "receipt": f"INV{invoice.pk}",
+        "notes": {"invoice_id": str(invoice.pk), "customer_id": str(contact_id)},
+    })
+
+    ctx = {
+        "invoice": invoice,
+        "amount_due": amount_due,
+        "razorpay_key_id": settings.RAZORPAY_KEY_ID,
+        "razor_order": order,
+    }
+    return render(request, "portal/razorpay_checkout.html", ctx)

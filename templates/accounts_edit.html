@@ -1,31 +1,283 @@
 {% extends 'base.html' %}
+{% load static %}
+
 {% block content %}
-<div class="container py-4" style="max-width:600px;">
-  <h4>Edit Account</h4>
-  {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
-  <form method="post">{% csrf_token %}
-    <div class="mb-3">
-      <label>Account Name</label>
-      <input name="name" class="form-control" value="{{ account.name }}">
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Edit Account</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --card:#ffffff;
+      --accent:#ef4444;
+      --circle:#f05252;
+      --muted:#475569;
+      --soft-shadow: 0 10px 25px rgba(40,40,80,0.08);
+      --success:#10b981;
+      --warning:#f59e0b;
+      --info:#3b82f6;
+      --danger:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:40px;
+    }
+    .frame{
+      width:95%;
+      max-width:600px;
+      background:var(--card);
+      border-radius:24px;
+      padding:34px 48px;
+      box-shadow: var(--soft-shadow);
+      position:relative;
+      overflow:hidden;
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:32px;
+      padding-bottom:20px;
+      border-bottom:2px solid #f1f5f9;
+    }
+    .nav-links{
+      display:flex;
+      gap:24px;
+    }
+    .nav-links a{
+      color:var(--muted);
+      text-decoration:none;
+      font-weight:500;
+      padding:8px 16px;
+      border-radius:8px;
+      transition:all 0.2s;
+    }
+    .nav-links a:hover{
+      background:#f8fafc;
+      color:var(--accent);
+    }
+    .main-title{
+      font-size:2.2rem;
+      font-weight:800;
+      color:#1e293b;
+      margin:0 0 8px 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle{
+      color:var(--muted);
+      font-size:1.1rem;
+      margin:0 0 32px 0;
+    }
+    .error-alert{
+      background:#fee2e2;
+      border:2px solid #fca5a5;
+      color:#dc2626;
+      padding:16px 20px;
+      border-radius:12px;
+      margin-bottom:24px;
+      font-weight:500;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .error-icon{
+      font-size:1.2rem;
+    }
+    .form-section{
+      background:#f8fafc;
+      padding:24px;
+      border-radius:16px;
+      margin-bottom:24px;
+    }
+    .section-title{
+      font-size:1.3rem;
+      font-weight:700;
+      color:#1e293b;
+      margin:0 0 20px 0;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .section-icon{
+      width:32px;
+      height:32px;
+      background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:white;
+      font-size:1.2rem;
+    }
+    .form-group{
+      margin-bottom:20px;
+    }
+    .form-label{
+      font-weight:600;
+      color:#374151;
+      font-size:0.95rem;
+      margin-bottom:8px;
+      display:block;
+    }
+    .form-input, .form-select{
+      width:100%;
+      padding:12px 16px;
+      border:2px solid #e5e7eb;
+      border-radius:12px;
+      font-size:1rem;
+      transition:all 0.2s;
+      background:white;
+    }
+    .form-input:focus, .form-select:focus{
+      outline:none;
+      border-color:#667eea;
+      box-shadow:0 0 0 3px rgba(102,126,234,0.1);
+    }
+    .form-actions{
+      display:flex;
+      gap:16px;
+      justify-content:center;
+      margin-top:32px;
+    }
+    .btn{
+      padding:14px 28px;
+      border-radius:12px;
+      font-weight:600;
+      font-size:1rem;
+      text-decoration:none;
+      border:none;
+      cursor:pointer;
+      transition:all 0.2s;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    .btn-primary{
+      background:linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color:white;
+    }
+    .btn-primary:hover{
+      transform:translateY(-2px);
+      box-shadow:0 8px 25px rgba(16,185,129,0.3);
+    }
+    .btn-secondary{
+      background:#f1f5f9;
+      color:var(--muted);
+    }
+    .btn-secondary:hover{
+      background:#e2e8f0;
+      transform:translateY(-1px);
+      color:var(--muted);
+    }
+    .account-type-info{
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));
+      gap:12px;
+      margin-top:8px;
+    }
+    .type-badge{
+      padding:6px 12px;
+      border-radius:20px;
+      font-size:0.8rem;
+      font-weight:600;
+      text-align:center;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
+    .type-asset{background:#dbeafe;color:#1d4ed8}
+    .type-liability{background:#fee2e2;color:#dc2626}
+    .type-income{background:#d1fae5;color:#059669}
+    .type-expense{background:#fef3c7;color:#d97706}
+    .type-equity{background:#e0e7ff;color:#7c3aed}
+    @media (max-width:768px){
+      body{padding:20px}
+      .frame{padding:24px}
+      .main-title{font-size:1.8rem}
+      .form-actions{flex-direction:column}
+      .btn{justify-content:center}
+      .account-type-info{grid-template-columns:1fr 1fr}
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div class="nav-links">
+        <a href="{% url 'accounts_list' %}">← Accounts</a>
+        <a href="{% url 'dashboard' %}">Dashboard</a>
+      </div>
     </div>
-    <div class="mb-3">
-      <label>Type</label>
-      <select name="account_type" class="form-control">
-        <option value="asset" {% if account.account_type=='asset' %}selected{% endif %}>Asset</option>
-        <option value="liability" {% if account.account_type=='liability' %}selected{% endif %}>Liability</option>
-        <option value="income" {% if account.account_type=='income' %}selected{% endif %}>Income</option>
-        <option value="expense" {% if account.account_type=='expense' %}selected{% endif %}>Expense</option>
-        <option value="equity" {% if account.account_type=='equity' %}selected{% endif %}>Equity</option>
-      </select>
-    </div>
-    <div class="mb-3">
-      <label>Code</label>
-      <input name="code" class="form-control" value="{{ account.code }}">
-    </div>
-    <div class="d-flex gap-2">
-      <button class="btn btn-primary">Save</button>
-      <a class="btn btn-secondary" href="{% url 'accounts_list' %}">Back</a>
-    </div>
-  </form>
-</div>
+
+    <h1 class="main-title">Edit Account</h1>
+    <p class="subtitle">Update account information and settings</p>
+
+    {% if error %}
+      <div class="error-alert">
+        <span class="error-icon">⚠️</span>
+        {{ error }}
+      </div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-section">
+        <div class="section-title">
+          <div class="section-icon">🏦</div>
+          Account Details
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Account Name *</label>
+          <input name="name" class="form-input" value="{{ account.name }}" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Account Type *</label>
+          <select name="account_type" class="form-select" required>
+            <option value="asset" {% if account.account_type=='asset' %}selected{% endif %}>Asset</option>
+            <option value="liability" {% if account.account_type=='liability' %}selected{% endif %}>Liability</option>
+            <option value="income" {% if account.account_type=='income' %}selected{% endif %}>Income</option>
+            <option value="expense" {% if account.account_type=='expense' %}selected{% endif %}>Expense</option>
+            <option value="equity" {% if account.account_type=='equity' %}selected{% endif %}>Equity</option>
+          </select>
+          <div class="account-type-info">
+            <div class="type-badge type-asset">Asset</div>
+            <div class="type-badge type-liability">Liability</div>
+            <div class="type-badge type-income">Income</div>
+            <div class="type-badge type-expense">Expense</div>
+            <div class="type-badge type-equity">Equity</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Account Code</label>
+          <input name="code" class="form-input" value="{{ account.code }}" placeholder="e.g., 1001, 2001, etc.">
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <a class="btn btn-secondary" href="{% url 'accounts_list' %}">
+          <span>←</span> Cancel
+        </a>
+        <button class="btn btn-primary" type="submit">
+          <span>💾</span> Save Changes
+        </button>
+      </div>
+    </form>
+  </div>
+</body>
+</html>
 {% endblock %}

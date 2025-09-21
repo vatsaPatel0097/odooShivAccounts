@@ -26,7 +26,52 @@
       min-height:100vh;
       font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
       background: linear-gradient(35deg, #f7e6f3, #e2eafc, #b3d1ff, #f3dff7);
+    }
+    .main-container{
+      display:flex;
+      align-items:center;
+      justify-content:center;
       padding:40px;
+      min-height:calc(100vh - 80px);
+    }
+    .navbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:20px 48px;
+      background:#000000;
+      border-bottom:1px solid #333;
+      position:sticky;
+      top:0;
+      z-index:1000;
+      min-height:70px;
+    }
+    .navbar-brand{
+      font-size:24px;
+      font-weight:700;
+      color:#ffffff;
+      text-decoration:none;
+      letter-spacing:0.5px;
+    }
+    .navbar-nav{
+      display:flex;
+      gap:32px;
+      align-items:center;
+      font-weight:500;
+      color:#ffffff;
+      letter-spacing:0.2px;
+    }
+    .navbar-nav a{ 
+      color: #ffffff; 
+      text-decoration:none;
+      padding:10px 20px;
+      border-radius:8px;
+      transition:all 0.3s ease;
+      font-size:16px;
+    }
+    .navbar-nav a:hover{
+      background-color:#333333;
+      color:#ffffff;
     }
     .frame{
       width:100%;
@@ -282,7 +327,22 @@
   </style>
 </head>
 <body>
-  <div class="frame">
+  <!-- Navbar in Header -->
+  <nav class="navbar">
+    <div class="navbar-brand">
+      Shiva Accounts
+    </div>
+    <div class="navbar-nav">
+      <a href="{% url 'dashboard' %}">Home</a>
+      <a href="javascript:history.back()">Back</a>
+      <a href="{% url 'contacts_list' %}">Contact</a>
+      <a href="{% url 'products_list' %}">Products</a>
+      <a href="{% url 'logout' %}">Logout</a>
+    </div>
+  </nav>
+
+  <div class="main-container">
+    <div class="frame">
     <div class="topbar">
       <div class="user-info">
         <div class="user-avatar">
@@ -417,6 +477,7 @@
         <div class="activity-icon">📊</div>
         <div class="activity-text">Generate reports to track your business performance and financial health.</div>
       </div>
+    </div>
     </div>
   </div>
 </body>

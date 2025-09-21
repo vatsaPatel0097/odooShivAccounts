@@ -89,9 +89,13 @@ path('invoices/<int:pk>/', views.customer_invoice_detail, name='customer_invoice
       path("portal/login/", views.customer_login, name="customer_login"),
     path("portal/logout/", views.customer_logout, name="customer_logout"),
     path("portal/invoices/", views.customer_portal_invoices, name="customer_portal_invoices"),
-    path("portal/invoices/<int:invoice_id>/pay/", views.customer_portal_pay, name="customer_portal_pay"),
+    # path("portal/invoices/<int:invoice_id>/pay/", views.customer_portal_pay, name="customer_portal_pay"),
 
 path('portal/invoices/<int:invoice_id>/pay/create-order/', views.portal_invoice_pay_create_order, name='portal_invoice_pay_create_order'),
-    path('portal/invoices/<int:invoice_id>/pay/verify/', views.portal_invoice_razorpay_verify, name='portal_invoice_razorpay_verify'),
+    # path('portal/invoices/<int:invoice_id>/pay/verify/', views.portal_invoice_razorpay_verify, name='portal_invoice_razorpay_verify'),
     path('razorpay/webhook/', views.razorpay_webhook, name='razorpay_webhook'),  # optional
+
+    path("portal/invoices/<int:invoice_id>/pay/", views.portal_invoice_pay_create_order, name="portal_invoice_pay_create_order"),
+path("portal/invoices/<int:invoice_id>/razorpay-verify/", views.portal_invoice_razorpay_verify, name="portal_invoice_razorpay_verify"),
+
 ]

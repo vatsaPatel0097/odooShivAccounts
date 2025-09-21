@@ -374,7 +374,7 @@
                 <div class="po-date">{{ po.po_date|date:"M d, Y" }}</div>
               </td>
               <td>
-                <div class="po-total">₹{{ po.total|floatformat:2 }}</div>
+                <div class="po-total">₹{{ po.grand_total|floatformat:2 }}</div>
               </td>
               <td>
                 {% if po.state == 'draft' %}
